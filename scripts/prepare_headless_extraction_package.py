@@ -21,10 +21,12 @@ from __future__ import annotations
 
 import argparse
 import ast
+import functools
 import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 
 
@@ -115,6 +117,22 @@ def build_extraction_plan(
 
     from fcc_test_contracts.common.extraction_lane_policy import MANIFEST_VERSION
 
+    try:
+        tracked = tracked_source_paths()
+    except TrackedSourcesUnavailable as exc:
+        # Same shape as the version refusal below, and for the same reason: this
+        # CLI's contract is that it always prints a plan document, and callers
+        # parse stdout even on a non-zero exit. Refusing here rather than at the
+        # first walk also means the refusal is stated once instead of per tree.
+        return {
+            'schema_version': 1,
+            'manifest_path': _relative(manifest_path),
+            'packages': {},
+            'import_rewrites': {},
+            'issues': [_issue('untracked_sources_unavailable', 'repository', str(exc))],
+            'compatible': False,
+        }
+
     if manifest.get('manifest_version') != MANIFEST_VERSION:
         # A typed issue, not a traceback. This CLI's contract is that it always
         # prints a plan document, and callers parse stdout even on a non-zero
@@ -184,6 +202,20 @@ def build_extraction_plan(
             )
             issues.extend(entry_issues)
             entries.extend(expanded)
+        # Totality, not a second copy of the walk filter. The sweep above drops
+        # untracked files silently because a tree entry never named them; every
+        # other expansion — a file entry naming one path, the shared-kernel
+        # closure, the lane test suite — *did* name what it planned, and a name
+        # that resolves to something git does not have is a declaration error.
+        # It is stated rather than dropped, because dropping it would shrink the
+        # delivered set behind the author's back and the parity invariants would
+        # then disagree about which set is the real one.
+        for item in entries:
+            if item['current_path'] not in tracked:
+                issues.append(_issue(
+                    'untracked_source', f'repositories.{repo_name}',
+                    f'planned file is not tracked by git: {item["current_path"]}',
+                ))
         packages[repo_name] = entries
 
     return {
@@ -460,8 +492,18 @@ def _expand_directory_entry(
     policy = ExtractionLanePolicy.from_manifest(manifest)
     planned: list[dict] = []
     issues: list[dict] = []
+    tracked = tracked_source_paths()
     for source in _walk_files(source_dir, policy):
         rel = source.relative_to(PROJECT_ROOT).as_posix()
+        if rel not in tracked:
+            # Trackedness is asked first, and it is the only filter here that
+            # is silent by design. The declaration is the *tree*; a file git
+            # does not have was never part of what a reviewer approved, so
+            # leaving it behind is not a drop from the delivery — it is the
+            # delivery declining to invent one. Everything below this line
+            # judges files the repository actually contains, and each of those
+            # rejections names itself.
+            continue
         if policy.is_excluded(rel):
             continue
         # Forbidden first, and deliberately so. A provider-private path inside a
@@ -492,6 +534,66 @@ def _expand_directory_entry(
             f'directory relocation staged no files: {current_path}',
         ))
     return planned, issues
+
+
+class TrackedSourcesUnavailable(RuntimeError):
+    """git could not answer what this repository tracks.
+
+    The refusal is the whole point. Every other answer to "git is not here"
+    ships the walk's result unfiltered, which is the state this class exists to
+    end — and it would do so silently, on the one machine where the untracked
+    files actually live.
+    """
+
+
+@functools.lru_cache(maxsize=1)
+def tracked_source_paths() -> frozenset[str]:
+    """Repository-relative paths git tracks, as the delivery's eligibility set.
+
+    **A delivered file must be a file the repository has.** Directory entries
+    are a declaration that a *tree* leaves, and until 2026-08-30 the contents of
+    that tree came from :func:`_walk_files` alone — so whatever happened to sit
+    on the packager's disk left with it. Measured that day on the operator's own
+    working tree, the platform box carried five files no reviewer had ever seen:
+
+        apps/web/.env.dev-stack.local        (a central PostgreSQL DSN, with credentials)
+        apps/web/.env.dev-stack.local.bak
+        apps/web/src/api/generated/*.ts      (three generated artifacts)
+
+    All five are gitignored, and the repositories they were bound for are slated
+    to go public. The same shape had already been caught once — 281
+    ``__pycache__`` files in the first delivery — and the answer then was a glob
+    in the manifest's exclusions. That answer is why this one recurred: an
+    exclusion list names the leaks somebody already thought of, so the next
+    ignored file walks straight through it. Trackedness inverts the default,
+    and it needs no maintenance because git already maintains it.
+
+    ⚠️ **This defect is invisible from a clean tree.** In a fresh worktree the
+    untracked files do not exist, so the plan measures zero of them — while the
+    machine that actually runs the delivery measures five. A seal that merely
+    asserts "today's plan carries nothing untracked" is therefore vacuous
+    exactly where it is not, and the tests build the condition instead.
+    """
+    try:
+        completed = subprocess.run(
+            ['git', '-C', str(PROJECT_ROOT), 'ls-files', '-z'],
+            capture_output=True, text=True, check=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise TrackedSourcesUnavailable(
+            f'git could not list tracked files under {PROJECT_ROOT}: {exc}'
+        ) from exc
+    paths = frozenset(entry for entry in completed.stdout.split('\0') if entry)
+    if not paths:
+        # An empty answer is not "this repository is empty" in any situation
+        # this script runs in; it is git answering about something other than
+        # the monorepo. Treated as unavailable rather than as a filter that
+        # rejects everything, because the latter reads downstream as an
+        # empty_directory_relocation and sends the author hunting the manifest.
+        raise TrackedSourcesUnavailable(
+            f'git listed no tracked files under {PROJECT_ROOT}'
+        )
+    return paths
 
 
 def _walk_files(source_dir: Path, policy) -> list[Path]:
