@@ -1,0 +1,340 @@
+{
+  "asyncapi": "3.0.0",
+  "channels": {
+    "/session/events": {
+      "address": "/session/events",
+      "description": "WebSocket channel emitting real-time TestRunner events. Server sends JSON frames; clients must not send messages. Offer the bearer credential as a WebSocket subprotocol pair — `['fcc.bearer.v1', <token>]` — the server echoes only the sentinel (never the token) back via the handshake response.",
+      "messages": {
+        "SessionEvent.cell": {
+          "$ref": "#/components/messages/SessionEvent.cell"
+        },
+        "SessionEvent.completion": {
+          "$ref": "#/components/messages/SessionEvent.completion"
+        },
+        "SessionEvent.error": {
+          "$ref": "#/components/messages/SessionEvent.error"
+        },
+        "SessionEvent.log": {
+          "$ref": "#/components/messages/SessionEvent.log"
+        },
+        "SessionEvent.notification": {
+          "$ref": "#/components/messages/SessionEvent.notification"
+        },
+        "SessionEvent.ping": {
+          "$ref": "#/components/messages/SessionEvent.ping"
+        },
+        "SessionEvent.progress": {
+          "$ref": "#/components/messages/SessionEvent.progress"
+        },
+        "SessionEvent.total": {
+          "$ref": "#/components/messages/SessionEvent.total"
+        }
+      },
+      "x-fcc-ws-bearer-subprotocol": "fcc.bearer.v1"
+    }
+  },
+  "components": {
+    "messages": {
+      "SessionEvent.cell": {
+        "contentType": "application/json",
+        "name": "SessionEvent.cell",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "cell",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "title": "row_order",
+                  "type": "integer"
+                },
+                {
+                  "additionalProperties": true,
+                  "title": "changes",
+                  "type": "object"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "Excel test plan cell update (TestRunner.cellsUpdated).",
+        "title": "session-event:cell"
+      },
+      "SessionEvent.completion": {
+        "contentType": "application/json",
+        "name": "SessionEvent.completion",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "completion",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "title": "success",
+                  "type": "boolean"
+                },
+                {
+                  "title": "summary",
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "Session completion notification (TestRunner.completionSignal).",
+        "title": "session-event:completion"
+      },
+      "SessionEvent.error": {
+        "contentType": "application/json",
+        "name": "SessionEvent.error",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "error",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "title": "message",
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "Surfaced error message (TestRunner.errorMessageSignal).",
+        "title": "session-event:error"
+      },
+      "SessionEvent.log": {
+        "contentType": "application/json",
+        "name": "SessionEvent.log",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "log",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "title": "message",
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "Free-form log line (TestRunner.updateSignal).",
+        "title": "session-event:log"
+      },
+      "SessionEvent.notification": {
+        "contentType": "application/json",
+        "name": "SessionEvent.notification",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "notification",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "title": "message",
+                  "type": "string"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "User-facing notification entry (TestRunner.notificationSignal).",
+        "title": "session-event:notification"
+      },
+      "SessionEvent.ping": {
+        "contentType": "application/json",
+        "name": "SessionEvent.ping",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "ping",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 0,
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "Server-side heartbeat ping to detect half-open WebSocket clients.",
+        "title": "session-event:ping"
+      },
+      "SessionEvent.progress": {
+        "contentType": "application/json",
+        "name": "SessionEvent.progress",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "progress",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "title": "completed",
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "Currently completed test count (TestRunner.completedTestsSignal).",
+        "title": "session-event:progress"
+      },
+      "SessionEvent.total": {
+        "contentType": "application/json",
+        "name": "SessionEvent.total",
+        "payload": {
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "total",
+              "type": "string"
+            },
+            "payload": {
+              "maxItems": 1,
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "minimum": 0,
+                  "title": "total",
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind",
+            "payload"
+          ],
+          "type": "object"
+        },
+        "summary": "Total scheduled test count (TestRunner.totalTestsSignal).",
+        "title": "session-event:total"
+      }
+    },
+    "schemas": {
+      "SessionEventEnvelope": {
+        "oneOf": [
+          {
+            "$ref": "#/components/messages/SessionEvent.progress"
+          },
+          {
+            "$ref": "#/components/messages/SessionEvent.cell"
+          },
+          {
+            "$ref": "#/components/messages/SessionEvent.total"
+          },
+          {
+            "$ref": "#/components/messages/SessionEvent.completion"
+          },
+          {
+            "$ref": "#/components/messages/SessionEvent.error"
+          },
+          {
+            "$ref": "#/components/messages/SessionEvent.log"
+          },
+          {
+            "$ref": "#/components/messages/SessionEvent.notification"
+          },
+          {
+            "$ref": "#/components/messages/SessionEvent.ping"
+          }
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Real-time event stream for FCC measurement sessions. Subscribe via the WebSocket channel described below. AuthZ (W3-4, 2026-08-01): browser `WebSocket` cannot set a custom `Authorization` header on the upgrade request, so the bearer credential rides the `Sec-WebSocket-Protocol` offer instead — `['fcc.bearer.v1', <token>]` (RFC 6455 §4.1). See `x-fcc-ws-bearer-subprotocol` on the channel below. A genuine `Authorization` header (non-browser clients) always takes precedence over this overlay.",
+    "title": "FCC Session API Events",
+    "version": "2",
+    "x-fcc-session-api-version": "2"
+  },
+  "operations": {
+    "subscribeSessionEvents": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels//session/events"
+      },
+      "summary": "Receive real-time session events from the server.",
+      "x-fcc-permission": "session:events"
+    }
+  }
+}

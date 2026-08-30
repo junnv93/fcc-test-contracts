@@ -1,0 +1,264 @@
+"""Nearest-ancestor discovery for repository-relative artifacts (SSOT).
+
+``tests/test_repository_artifact_depth_axis.py`` names a defect class this
+repository has hit three times: a module resolves a repository-relative
+artifact — a file addressed from the tree root, outside its own package — by
+walking a *fixed* number of directories upward from ``__file__``. That
+arithmetic encodes one tree's shape and is correct in exactly the tree it was
+written in. ``src/application/platform/rbac_role_catalog.py`` was correct for
+months; it broke the moment a delivered package put the module one level
+shallower, because ``parents[3]`` then pointed *above* the delivered tree.
+Nobody edited the module — the tree changed.
+
+``discover_tree_artifact`` is the general form of the repair that module
+applied (``_discover_schema_path``): ask *where is the tree I am part of*
+instead of encoding *how many directories up it is*. Deterministic — nearest
+ancestor wins — and unchanged for callers already at the correct depth, since
+the nearest ancestor holding the requested tree is the same answer a fixed
+depth would have given, for exactly as long as that depth stays correct.
+
+Dependency-free by contract (stdlib only) so it stays importable from the
+``fcc-test-contracts`` lane, which every other lane may depend on.
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+__all__ = [
+    'LAYOUT_RECORD_NAME',
+    'DependencyTreeUnavailable',
+    'RelocationAmbiguity',
+    'discover_tree_artifact',
+    'resolve_dependency_artifact',
+    'resolve_repo_artifact',
+]
+
+#: Filename the extraction packager writes into every delivered tree, recording
+#: what it wrote where.
+#:
+#: The record is a *fact*, not a plan: ``stage_extraction_package`` already
+#: knows, for each file it copies, both the repository-relative path it read and
+#: the tree-relative path it wrote, and it was throwing that away. Writing it
+#: down makes the packager the single source of truth about its own relocation —
+#: complete by construction, because a file that was copied is a file that was
+#: recorded. Every alternative (re-deriving the mapping from the manifest at
+#: read time, or teaching each caller the shape of one delivered tree) puts a
+#: second opinion next to the only one that actually happened.
+LAYOUT_RECORD_NAME = '.extraction-layout.json'
+
+
+def discover_tree_artifact(anchor_file: str | Path, *segments: str) -> Path:
+    """Resolve ``segments`` under the nearest ancestor of ``anchor_file`` that
+    actually holds them, and return the joined path — not the ancestor alone.
+
+    ``anchor_file`` must be the *caller's* ``__file__``, never this module's:
+    the walk starts at the caller's own location so each tree answers for its
+    own shape, whatever depth that tree happens to be delivered at.
+
+    The existence check anchors on ``segments[0]`` — the ancestor must hold the
+    *first* joined segment as a directory — not on the directory that would
+    hold the final leaf. A single-segment call (``discover_tree_artifact(f,
+    'scripts')``) makes that the same check as "does this ancestor hold
+    itself", which every ancestor trivially satisfies at distance zero: the
+    caller's own parent directory would answer immediately, joined onto itself
+    a second time. Anchoring on the first segment instead of the last is what
+    keeps the walk asking "where does the *named* tree start" rather than
+    "does something exist here" — the question this function exists to ask.
+    Multi-segment callers see the same directory checked either way, since the
+    first segment's holding directory is the repository (or nearest-ancestor)
+    root regardless of how many segments follow it.
+
+    Falls back to the outermost ancestor in ``anchor_file``'s own chain (the
+    true root of that chain, not a guessed depth) when no ancestor holds the
+    requested tree, so a misconfigured deployment fails loudly with a named
+    path instead of silently guessing — and possibly landing above the tree,
+    which is exactly the 2026-08-12 failure this function replaces.
+
+    Requires at least one segment: resolving "the tree root itself" is not
+    this function's question, and silently accepting zero segments would
+    return the caller's own directory for the same reason a single segment
+    once did.
+    """
+    if not segments:
+        raise ValueError('discover_tree_artifact() requires at least one segment')
+    here = Path(anchor_file).resolve()
+    first = segments[0]
+    for ancestor in here.parents:
+        if ancestor.joinpath(first).is_dir():
+            return ancestor.joinpath(*segments)
+    return here.parents[-1].joinpath(*segments)
+
+
+class DependencyTreeUnavailable(LookupError):
+    """This module has no tree to answer for, so a dependency artifact cannot be found.
+
+    Distinct from :class:`RelocationAmbiguity`, which means *the record gave two
+    answers*. This one means *there is no record and no checkout* — the shape an
+    installed wheel produces. Both are refusals rather than guesses, for the same
+    reason: a resolver that answers anyway hands back a path that looks
+    authoritative and is wrong.
+    """
+
+
+class RelocationAmbiguity(LookupError):
+    """A requested directory was split across more than one delivered location.
+
+    Raised rather than resolved, because every way of choosing between the
+    candidates is a guess, and a guessing resolver reintroduces exactly the
+    silence this module exists to end: the caller would receive a path that
+    looks authoritative and is wrong for some of the files under it.
+    """
+
+
+def resolve_repo_artifact(anchor_file: str | Path, rel_path: str) -> Path:
+    """Where ``rel_path`` — a *repository-relative* path — lives in this tree.
+
+    Callers name artifacts the way the repository names them
+    (``'docs/platform/migrations'``), which is the vocabulary every test, doc
+    and ledger entry already uses. What changes between trees is not the name
+    but the location: the extraction packager delivers
+    ``docs/platform/migrations/001_x.sql`` as ``migrations/001_x.sql`` and
+    ``src/application/platform/rbac_role_catalog.py`` as
+    ``fcc_test_platform/application/rbac_role_catalog.py``.
+
+    In the monorepo there is no layout record and the answer is the joined path
+    itself — **byte-identical to what a caller computed before**, which is why
+    adopting this function cannot move the monorepo suite. In a delivered tree
+    the record answers, and it answers from what the packager did rather than
+    from anyone's model of what it should have done.
+
+    Directory moves are *derived* from the file records rather than declared a
+    second time: for ``docs/platform/migrations`` the resolver looks at every
+    recorded file beneath it whose delivered path still ends with the same
+    tail, and takes the directory those tails hang from. Files the packager
+    also *renamed* (``platform_ingestion.py`` → ``provider_ingestion.py``) carry
+    no directory evidence and are excluded from that inference — they can only
+    be addressed by their exact path, which is the honest consequence of a
+    rename.
+
+    An unrecorded path resolves to itself. That is not a silent success: the
+    caller gets the same missing path it would have got anyway, and fails
+    naming it, which is strictly more informative than this function inventing
+    a location for a file the box does not contain.
+    """
+    rel = str(rel_path).replace('\\', '/').strip('/')
+    if not rel:
+        raise ValueError('resolve_repo_artifact() requires a repository-relative path')
+    root = _tree_root(Path(anchor_file).resolve())
+    record = _layout_record(root)
+    if not record:
+        return root.joinpath(*rel.split('/'))
+    delivered = record.get(rel, _delivered_directory(rel, record))
+    # A tree whose files landed at its own root answers with the root itself.
+    return root.joinpath(*delivered.split('/')) if delivered else root
+
+
+def resolve_dependency_artifact(rel_path: str) -> Path:
+    """Where ``rel_path`` lives in **the tree that delivered this module**.
+
+    :func:`resolve_repo_artifact` answers *where did my own tree put this*, and
+    for an artifact a lane owns that is the whole question. It is the wrong
+    question for an artifact a *dependency* owns: the platform box's tests read
+    ``docs/api/platform-api.openapi.json``, a file the contracts lane owns and
+    ships in its own box as ``artifacts/platform-api.openapi.json``. Anchored on
+    the caller, the resolver correctly reports that the platform tree does not
+    contain it and hands back the path unchanged — which is honest, and still a
+    failure.
+
+    Anchoring on *this module* instead changes which tree is asked, and nothing
+    else. This module belongs to the dependency-free lane every other lane
+    depends on, so wherever it was imported from is, by construction, the
+    delivered tree of that dependency:
+
+    * In the monorepo it resolves from ``src/application/common/``, there is no
+      layout record above it, and the answer is the joined repository-relative
+      path — **identical** to what the caller computed before. That identity is
+      what keeps the monorepo suite byte-for-byte unchanged.
+    * In a delivered box that received this lane as an installed requirement,
+      ``__file__`` points into that lane's tree, whose record says where the
+      artifact landed.
+
+    No package name appears here, and no manifest key was added. The question is
+    not *which sibling holds this* — that would need a table, and a table is a
+    second opinion next to the packager's own record. The question is *where did
+    the tree I came from put it*, which the record already answers.
+
+    The precondition — that the dependency-free lane is the only extraction
+    target any other target depends on — is not assumed silently: the packaging
+    axis asserts it as a derivation over the manifest, so a second sibling target
+    turns red here rather than resolving to the wrong tree.
+
+    **Raises rather than guesses when this module has no tree.** Installed as a
+    wheel into ``site-packages``, this module sits under neither a layout record
+    nor a repository checkout, and :func:`_tree_root` then falls through to the
+    filesystem anchor — after which joining a repository-relative path yields
+    ``/docs/api/...``, a location nothing put anything at. That is precisely the
+    invention :class:`RelocationAmbiguity` exists to refuse, so it is refused
+    here too: the artifacts a lane ships at its *box root* (``artifacts/``) are
+    outside the importable package and do not travel inside a wheel, and the
+    honest answer to "where did my dependency put this" in that shape is that
+    the question cannot be answered, not a path that looks authoritative.
+    """
+    root = _tree_root(Path(__file__).resolve())
+    if root == root.parent:
+        raise DependencyTreeUnavailable(
+            f'cannot resolve {rel_path!r} through the tree that delivered '
+            f'{__name__}: this module resolves to {__file__!r}, which sits under '
+            'neither a delivered box (no layout record above it) nor a repository '
+            'checkout. A lane installed as a wheel carries its importable '
+            'packages, not the artifacts it ships at its box root — deliver the '
+            'sibling as a tree on sys.path, or ship the artifact as package data.'
+        )
+    return resolve_repo_artifact(__file__, rel_path)
+
+
+def _tree_root(here: Path) -> Path:
+    """Nearest ancestor holding a layout record, else the repository root.
+
+    The fallback asks the same question :func:`discover_tree_artifact` asks —
+    *where does the tree I am part of start* — using the markers a checkout of
+    this repository has. It is only reachable for a tree the packager did not
+    write, so a delivered box that later grows its own ``pyproject.toml`` (the
+    packaging axis this repository has not yet decided) still resolves through
+    its record, which is checked first.
+    """
+    for ancestor in here.parents:
+        if (ancestor / LAYOUT_RECORD_NAME).is_file():
+            return ancestor
+    for ancestor in here.parents:
+        if (ancestor / '.git').exists() or (ancestor / 'pyproject.toml').is_file():
+            return ancestor
+    return here.parents[-1]
+
+
+def _layout_record(root: Path) -> dict[str, str]:
+    path = root / LAYOUT_RECORD_NAME
+    if not path.is_file():
+        return {}
+    payload = json.loads(path.read_text(encoding='utf-8'))
+    return dict(payload.get('paths') or {})
+
+
+def _delivered_directory(rel: str, record: dict[str, str]) -> str:
+    prefix = rel + '/'
+    candidates: set[str] = set()
+    for current, future in record.items():
+        if not current.startswith(prefix):
+            continue
+        tail = current[len(prefix):]
+        if future == tail:
+            candidates.add('')
+        elif future.endswith('/' + tail):
+            candidates.add(future[: -len(tail) - 1])
+    if len(candidates) > 1:
+        # The tree root is a legitimate destination and renders as the empty
+        # string, which reads as nothing at all in the one message a reader
+        # gets. Name it.
+        named = sorted(candidate or '<tree root>' for candidate in candidates)
+        raise RelocationAmbiguity(
+            f'{rel!r} was delivered to more than one location: '
+            f'{named!r} — address the files individually'
+        )
+    return candidates.pop() if candidates else rel
+

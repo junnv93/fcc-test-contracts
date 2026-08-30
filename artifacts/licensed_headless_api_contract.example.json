@@ -1,0 +1,3500 @@
+{
+  "compatibility_major": 1,
+  "operations": {
+    "add_test_plan_draft_row": {
+      "permission": "test_plan:author",
+      "request": "AddTestPlanDraftRowRequest",
+      "response": "TestPlanDraftRowView"
+    },
+    "archive_test_plan_draft": {
+      "error_responses": {
+        "409": "Draft cannot be archived from its current status (e.g. published) or a concurrent transition conflicted. Re-archiving an already-archived draft is idempotent (200, not 409)."
+      },
+      "permission": "test_plan:author",
+      "request": null,
+      "response": "TestPlanDraftView"
+    },
+    "cancel_report_automation_request": {
+      "permission": "report_automation:control",
+      "request": "CancelReportAutomationRequest",
+      "response": "CancelReportAutomationResponse"
+    },
+    "create_report_output_download": {
+      "permission": "report_automation:read",
+      "request": "CreateReportOutputDownloadRequest",
+      "response": "ReportOutputDownloadGrant"
+    },
+    "create_test_plan_draft": {
+      "permission": "test_plan:author",
+      "request": "CreateTestPlanDraftRequest",
+      "response": "TestPlanDraftView"
+    },
+    "export_session_results": {
+      "binary_media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "binary_response": true,
+      "error_responses": {
+        "422": "The session has no measurement rows \u2014 there is nothing to render into a result workbook (SESSION_RESULTS_EMPTY)."
+      },
+      "permission": "headless:read",
+      "request": null,
+      "response": ""
+    },
+    "export_test_plan_draft": {
+      "binary_media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "binary_response": true,
+      "error_responses": {
+        "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
+        "422": "Draft has no rows \u2014 an empty plan has nothing to export."
+      },
+      "permission": "test_plan:read",
+      "request": null,
+      "response": ""
+    },
+    "get_measurement_job": {
+      "permission": "headless:read",
+      "request": null,
+      "response": "MeasurementJobSnapshot"
+    },
+    "get_report_preflight": {
+      "permission": "report_automation:read",
+      "query_params": [
+        {
+          "description": "Measurement session to dry-run the report preflight for (per-technology completeness + data-quality, no docx render).",
+          "name": "session_id",
+          "schema": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response": "ReportPreflightSummary"
+    },
+    "get_report_request": {
+      "permission": "report_automation:read",
+      "request": null,
+      "response": "ReportRequestSnapshot"
+    },
+    "get_test_plan_draft": {
+      "permission": "test_plan:read",
+      "request": null,
+      "response": "TestPlanDraftView"
+    },
+    "get_test_plan_generation": {
+      "permission": "test_plan:read",
+      "request": null,
+      "response": "TestPlanGenerationJobResponse"
+    },
+    "get_test_plan_generation_metadata": {
+      "permission": "test_plan:read",
+      "request": null,
+      "response": "TestPlanGenerationMetadataResponse"
+    },
+    "headless_api_contract": {
+      "permission": "public",
+      "request": null,
+      "response": "ApiContractDocument"
+    },
+    "headless_status": {
+      "permission": "headless:read",
+      "request": null,
+      "response": "HeadlessBackendStatusSnapshot"
+    },
+    "health_check": {
+      "permission": "public",
+      "request": null,
+      "response": "HealthCheckResponse"
+    },
+    "import_test_plan": {
+      "error_responses": {
+        "422": "Workbook unprocessable \u2014 the parsed rows fail the draft write gate (out-of-scope sub_family / capability taxonomy violation)."
+      },
+      "multipart_request": true,
+      "permission": "test_plan:author",
+      "request": null,
+      "response": "TestPlanImportResponse"
+    },
+    "list_measurement_jobs": {
+      "permission": "headless:read",
+      "request": null,
+      "response": "MeasurementJobList"
+    },
+    "list_published_test_plans": {
+      "permission": "test_plan:read",
+      "query_params": [
+        {
+          "description": "Maximum number of published-plan summaries to return. Omitted = all publications for the project (publications per project are bounded), newest first. A supplied value is clamped to [1, 1000].",
+          "name": "limit",
+          "schema": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response": "ListPublishedTestPlansResponse"
+    },
+    "list_report_outputs": {
+      "permission": "report_automation:read",
+      "request": null,
+      "response": "ReportOutputMetadataList"
+    },
+    "list_session_artifacts": {
+      "permission": "headless:read",
+      "request": null,
+      "response": "ArtifactMetadataList"
+    },
+    "list_session_attempts": {
+      "permission": "headless:read",
+      "query_params": [
+        {
+          "description": "Opaque keyset cursor from a prior response's ``next_cursor``. Omit for the first page.",
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Maximum attempts per page (clamped to the server max).",
+          "name": "limit",
+          "schema": {
+            "default": 500,
+            "maximum": 2000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        {
+          "description": "Drill down to a single test-plan condition.",
+          "name": "row_order",
+          "schema": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response": "MeasurementAttemptPage"
+    },
+    "list_session_results": {
+      "permission": "headless:read",
+      "request": null,
+      "response": "MeasurementResultEnvelopeList"
+    },
+    "list_test_plan_drafts": {
+      "permission": "test_plan:read",
+      "query_params": [
+        {
+          "description": "Filter by draft status (draft|archived). Omitted = all statuses. An unknown value is a 422 (unprocessable).",
+          "name": "status",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "description": "Maximum number of draft summaries per page. Omitted = uncapped (single page, returns all matching drafts).",
+          "name": "limit",
+          "schema": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        {
+          "description": "Opaque keyset cursor from a prior response's ``next_cursor``. Omit for the first page. A malformed cursor is a 400.",
+          "name": "cursor",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "request": null,
+      "response": "ListTestPlanDraftsResponse"
+    },
+    "list_test_plan_generation_catalogue": {
+      "permission": "test_plan:read",
+      "request": null,
+      "response": "TestPlanGenerationCatalogueResponse"
+    },
+    "list_test_plan_generation_rows": {
+      "permission": "test_plan:read",
+      "query_params": [
+        {
+          "description": "Seek position from the preceding page.",
+          "name": "after_draft_row_id",
+          "schema": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        {
+          "description": "Requested page size. The server applies the configured TestPlanGenerationLimits.page_size ceiling.",
+          "name": "limit",
+          "schema": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        }
+      ],
+      "request": null,
+      "response": "TestPlanGenerationRowPageResponse"
+    },
+    "preview_test_plan_generation": {
+      "error_responses": {
+        "409": "Conflict \u2014 the production matrix cannot produce rows for this request, the preview is stale, or a staged WLAN request has missing, stale, or empty production input.",
+        "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
+      },
+      "permission": "test_plan:read",
+      "request": "TestPlanGenerationRequest",
+      "request_required": true,
+      "response": "TestPlanGenerationPreviewResponse"
+    },
+    "provider_capabilities": {
+      "permission": "headless:read",
+      "request": null,
+      "response": "ProviderCapabilitiesResponse"
+    },
+    "provider_ui_descriptor": {
+      "permission": "headless:read",
+      "request": null,
+      "response": "ProviderUiDescriptor"
+    },
+    "publish_test_plan_draft": {
+      "error_responses": {
+        "403": "AuthZ denied (missing test_plan:author).",
+        "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
+        "409": "Publish conflict \u2014 the draft is not DRAFT (e.g. archived), a concurrent transition won the race, or materialize found a duplicate measurement condition (ADR-0005 Decision A reject).",
+        "422": "Draft is unpublishable (no rows \u2014 an empty plan has no meaning)."
+      },
+      "permission": "test_plan:author",
+      "query_params": [
+        {
+          "description": "Include the verbatim publish-time audit snapshots (scope_profile_json + generation_metadata_json) in the response. Omitted/false (default) returns them as null to keep the response lean.",
+          "name": "include_snapshots",
+          "schema": {
+            "default": false,
+            "type": "boolean"
+          }
+        }
+      ],
+      "request": null,
+      "response": "PublishedTestPlanView"
+    },
+    "remove_test_plan_draft_row": {
+      "permission": "test_plan:author",
+      "request": null,
+      "response": "RemoveTestPlanDraftRowResponse"
+    },
+    "replace_test_plan_draft_rows": {
+      "error_responses": {
+        "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
+        "409": "Row replace conflict \u2014 the draft is not DRAFT (archived/published, terminal row freeze) or a DB integrity constraint was violated."
+      },
+      "permission": "test_plan:author",
+      "request": "ReplaceTestPlanDraftRowsRequest",
+      "response": "ReplaceTestPlanDraftRowsResponse"
+    },
+    "report_automation_stats": {
+      "permission": "report_automation:read",
+      "request": null,
+      "response": "ReportAutomationQueueStats"
+    },
+    "stop_measurement_job": {
+      "permission": "headless:control",
+      "request": "StopMeasurementJobRequest",
+      "response": "StopMeasurementJobResponse"
+    },
+    "stream_report_output_download": {
+      "binary_response": true,
+      "error_responses": {
+        "409": "Integrity conflict \u2014 the granted file bytes no longer match the signed sha256 (changed/corrupt on disk; request a fresh grant).",
+        "410": "Gone \u2014 the download token/grant has expired (access window elapsed; request a fresh grant)."
+      },
+      "permission": "public",
+      "query_params": [
+        {
+          "description": "Signed download token from the grant response.",
+          "name": "token",
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "request": null,
+      "response": ""
+    },
+    "submit_measurement_job": {
+      "permission": "headless:control",
+      "request": "SubmitMeasurementJobRequest",
+      "response": "MeasurementJobSubmitted"
+    },
+    "submit_report_request": {
+      "permission": "report_automation:control",
+      "request": "SubmitReportRequest",
+      "response": "ReportRequestSubmitted"
+    },
+    "submit_test_plan_generation": {
+      "error_responses": {
+        "409": "Conflict \u2014 the preview is stale, the idempotency key was reused with a different request, or a staged WLAN request has missing, stale, or empty production input.",
+        "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
+      },
+      "header_params": [
+        {
+          "description": "Project-scoped retry key. Reusing it with a different canonical request returns 409.",
+          "name": "Idempotency-Key",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "type": "string"
+          }
+        }
+      ],
+      "permission": "test_plan:author",
+      "request": "TestPlanGenerationSubmitRequest",
+      "request_required": true,
+      "response": "TestPlanGenerationSubmittedResponse",
+      "success_status": 202
+    },
+    "validate_test_plan_draft": {
+      "error_responses": {
+        "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
+      },
+      "permission": "test_plan:read",
+      "request": null,
+      "response": "ValidateTestPlanDraftResponse"
+    }
+  },
+  "provider": {
+    "contract_family": "fcc-conducted-headless",
+    "product_line": "licensed-conducted",
+    "provider_id": "fcc-licensed-headless"
+  },
+  "routes": {
+    "add_test_plan_draft_row": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/rows"
+    },
+    "archive_test_plan_draft": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/archive"
+    },
+    "cancel_report_automation_request": {
+      "method": "POST",
+      "path": "/report-automation/requests/{request_id}/cancel"
+    },
+    "create_report_output_download": {
+      "method": "POST",
+      "path": "/headless/reports/{request_id}/outputs/download"
+    },
+    "create_test_plan_draft": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/drafts"
+    },
+    "export_session_results": {
+      "method": "GET",
+      "path": "/headless/sessions/{session_id}/results/export"
+    },
+    "export_test_plan_draft": {
+      "method": "GET",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/export"
+    },
+    "get_measurement_job": {
+      "method": "GET",
+      "path": "/headless/jobs/{job_id}"
+    },
+    "get_report_preflight": {
+      "method": "GET",
+      "path": "/headless/reports/preflight"
+    },
+    "get_report_request": {
+      "method": "GET",
+      "path": "/headless/reports/{request_id}"
+    },
+    "get_test_plan_draft": {
+      "method": "GET",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}"
+    },
+    "get_test_plan_generation": {
+      "method": "GET",
+      "path": "/headless/projects/{project_id}/test-plan/generations/{generation_job_id}"
+    },
+    "get_test_plan_generation_metadata": {
+      "method": "GET",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/generation-metadata"
+    },
+    "headless_api_contract": {
+      "method": "GET",
+      "path": "/headless/api-contract"
+    },
+    "headless_status": {
+      "method": "GET",
+      "path": "/headless/status"
+    },
+    "health_check": {
+      "method": "GET",
+      "path": "/health"
+    },
+    "import_test_plan": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/imports"
+    },
+    "list_measurement_jobs": {
+      "method": "GET",
+      "path": "/headless/jobs"
+    },
+    "list_published_test_plans": {
+      "method": "GET",
+      "path": "/headless/projects/{project_id}/test-plan/publications"
+    },
+    "list_report_outputs": {
+      "method": "GET",
+      "path": "/headless/reports/{request_id}/outputs"
+    },
+    "list_session_artifacts": {
+      "method": "GET",
+      "path": "/headless/sessions/{session_id}/artifacts"
+    },
+    "list_session_attempts": {
+      "method": "GET",
+      "path": "/headless/sessions/{session_id}/attempts"
+    },
+    "list_session_results": {
+      "method": "GET",
+      "path": "/headless/sessions/{session_id}/results"
+    },
+    "list_test_plan_drafts": {
+      "method": "GET",
+      "path": "/headless/projects/{project_id}/test-plan/drafts"
+    },
+    "list_test_plan_generation_catalogue": {
+      "method": "GET",
+      "path": "/headless/test-plan/generation/catalogue"
+    },
+    "list_test_plan_generation_rows": {
+      "method": "GET",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/rows"
+    },
+    "preview_test_plan_generation": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/generation/preview"
+    },
+    "provider_capabilities": {
+      "method": "GET",
+      "path": "/headless/capabilities"
+    },
+    "provider_ui_descriptor": {
+      "method": "GET",
+      "path": "/headless/ui-descriptor"
+    },
+    "publish_test_plan_draft": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/publish"
+    },
+    "remove_test_plan_draft_row": {
+      "method": "DELETE",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/rows/{draft_row_id}"
+    },
+    "replace_test_plan_draft_rows": {
+      "method": "PUT",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/rows"
+    },
+    "report_automation_stats": {
+      "method": "GET",
+      "path": "/report-automation/stats"
+    },
+    "stop_measurement_job": {
+      "method": "POST",
+      "path": "/headless/jobs/{job_id}/stop"
+    },
+    "stream_report_output_download": {
+      "method": "GET",
+      "path": "/headless/reports/outputs/download"
+    },
+    "submit_measurement_job": {
+      "method": "POST",
+      "path": "/headless/jobs"
+    },
+    "submit_report_request": {
+      "method": "POST",
+      "path": "/headless/sessions/{session_id}/reports"
+    },
+    "submit_test_plan_generation": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/generations"
+    },
+    "validate_test_plan_draft": {
+      "method": "POST",
+      "path": "/headless/projects/{project_id}/test-plan/drafts/{draft_id}/validate"
+    }
+  },
+  "schemas": {
+    "AddTestPlanDraftRowRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "antenna": {
+          "nullable": true,
+          "type": "string"
+        },
+        "capability_path": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "derived_kind": {
+          "enum": [
+            "afh_occupancy",
+            "antenna_sum"
+          ],
+          "nullable": true,
+          "type": "string"
+        },
+        "location": {
+          "nullable": true,
+          "type": "string"
+        },
+        "mode_family": {
+          "nullable": true,
+          "type": "string"
+        },
+        "scope_revision": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "test_type": {
+          "nullable": true,
+          "type": "string"
+        },
+        "tone": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "capability_path"
+      ],
+      "type": "object"
+    },
+    "ApiContractDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "compatibility_major": {
+          "type": "integer"
+        },
+        "operations": {
+          "type": "object"
+        },
+        "provider": {
+          "$ref": "#/schemas/ApiProviderMetadata"
+        },
+        "routes": {
+          "type": "object"
+        },
+        "schemas": {
+          "type": "object"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "version",
+        "compatibility_major",
+        "provider",
+        "routes",
+        "operations",
+        "schemas"
+      ],
+      "type": "object"
+    },
+    "ApiProviderMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "contract_family": {
+          "type": "string"
+        },
+        "product_line": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_id",
+        "product_line",
+        "contract_family"
+      ],
+      "type": "object"
+    },
+    "ArtifactMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_type": {
+          "type": "string"
+        },
+        "byte_size": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "original_filename": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "result_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "storage_backend": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_id",
+        "session_id",
+        "artifact_type",
+        "relative_path",
+        "storage_backend"
+      ],
+      "type": "object"
+    },
+    "ArtifactMetadataList": {
+      "items": {
+        "$ref": "#/schemas/ArtifactMetadata"
+      },
+      "type": "array"
+    },
+    "BleGenerationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "antennas": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands_per_subfamily": {
+          "additionalProperties": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minProperties": 1,
+          "type": "object"
+        },
+        "modulations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "phys": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "sub_families": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "technology": {
+          "const": "BLE"
+        },
+        "test_types": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "technology",
+        "sub_families",
+        "phys",
+        "test_types",
+        "antennas",
+        "modulations",
+        "bands_per_subfamily"
+      ],
+      "type": "object"
+    },
+    "BtGenerationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "antennas": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands_per_subfamily": {
+          "additionalProperties": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minProperties": 1,
+          "type": "object"
+        },
+        "modes": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "packets": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "technology": {
+          "const": "BT"
+        },
+        "test_types": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "technology",
+        "packets",
+        "modes",
+        "test_types",
+        "antennas",
+        "bands_per_subfamily"
+      ],
+      "type": "object"
+    },
+    "CancelReportAutomationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "CancelReportAutomationResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "cancelled": {
+          "type": "boolean"
+        },
+        "request_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "request_id",
+        "cancelled"
+      ],
+      "type": "object"
+    },
+    "CorrectionTableDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "enum": [
+            "supported",
+            "read_only",
+            "unsupported",
+            "planned",
+            "provider_specific",
+            "restricted"
+          ],
+          "type": "string"
+        },
+        "columns": {
+          "items": {
+            "$ref": "#/schemas/ProviderFieldDescriptor"
+          },
+          "type": "array"
+        },
+        "label": {
+          "type": "string"
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "table_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "table_id",
+        "label",
+        "sheet_name",
+        "access",
+        "columns"
+      ],
+      "type": "object"
+    },
+    "CreateReportOutputDownloadRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "attachment",
+            "inline"
+          ],
+          "type": "string"
+        },
+        "relative_path": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "relative_path"
+      ],
+      "type": "object"
+    },
+    "CreateTestPlanDraftRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "created_by": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "EquipmentConfigDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "fields": {
+          "items": {
+            "$ref": "#/schemas/ProviderFieldDescriptor"
+          },
+          "type": "array"
+        },
+        "group_id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "sheet_name": {
+          "description": "The workbook sheet these settings are read from today, when there is one. It was required, which quietly made this descriptor a sheet mirror rather than a settings form: a provider with no workbook could not describe its equipment at all, and the read-only status was a consequence of that shape rather than a decision. The sibling table descriptors keep it required because they really are sheet mirrors.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "group_id",
+        "label",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "ExcludedImportRowView": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "row_number": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "row_number",
+        "reason",
+        "detail"
+      ],
+      "type": "object"
+    },
+    "HeadlessBackendStatusSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "measurement_jobs": {
+          "$ref": "#/schemas/MeasurementJobStatusSummary"
+        },
+        "report_automation": {
+          "$ref": "#/schemas/ReportAutomationQueueStats"
+        },
+        "workers": {
+          "items": {
+            "$ref": "#/schemas/MeasurementWorkerSnapshot"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "measurement_jobs",
+        "workers",
+        "report_automation"
+      ],
+      "type": "object"
+    },
+    "HealthCheckResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "ImportAuditView": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_count": {
+          "type": "integer"
+        },
+        "by_technology": {
+          "items": {
+            "$ref": "#/schemas/ImportTechnologySummaryView"
+          },
+          "type": "array"
+        },
+        "excluded_count": {
+          "type": "integer"
+        },
+        "issue_count": {
+          "type": "integer"
+        },
+        "legend_skipped_count": {
+          "type": "integer"
+        },
+        "parser_version": {
+          "type": "string"
+        },
+        "raw_row_count": {
+          "type": "integer"
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "workbook_filename": {
+          "type": "string"
+        },
+        "workbook_sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workbook_filename",
+        "workbook_sha256",
+        "sheet_name",
+        "parser_version",
+        "raw_row_count",
+        "legend_skipped_count",
+        "accepted_count",
+        "issue_count",
+        "excluded_count",
+        "by_technology"
+      ],
+      "type": "object"
+    },
+    "ImportIssueView": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "row_number": {
+          "type": "integer"
+        },
+        "severity": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "row_number",
+        "severity",
+        "field",
+        "message"
+      ],
+      "type": "object"
+    },
+    "ImportTechnologySummaryView": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted": {
+          "type": "integer"
+        },
+        "excluded": {
+          "type": "integer"
+        },
+        "issues": {
+          "type": "integer"
+        },
+        "technology": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "technology",
+        "accepted",
+        "issues",
+        "excluded"
+      ],
+      "type": "object"
+    },
+    "ListPublishedTestPlansResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "publications": {
+          "items": {
+            "$ref": "#/schemas/PublishedTestPlanSummaryView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "publications"
+      ],
+      "type": "object"
+    },
+    "ListTestPlanDraftsResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "drafts": {
+          "items": {
+            "$ref": "#/schemas/TestPlanDraftSummaryView"
+          },
+          "type": "array"
+        },
+        "next_cursor": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "drafts"
+      ],
+      "type": "object"
+    },
+    "MeasurementAttemptEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "attempt_id": {
+          "type": "string"
+        },
+        "attempt_number": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "condition_hash": {
+          "type": "string"
+        },
+        "measured_at": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "recorded_by": {
+          "type": "string"
+        },
+        "result": {
+          "additionalProperties": false,
+          "properties": {
+            "dccf": {
+              "type": "string"
+            },
+            "margin": {
+              "type": "string"
+            },
+            "result1": {
+              "type": "string"
+            },
+            "result1_unit": {
+              "type": "string"
+            },
+            "result2": {
+              "type": "string"
+            },
+            "result2_unit": {
+              "type": "string"
+            },
+            "result_sum": {
+              "type": "string"
+            },
+            "result_sum_unit": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "row_order": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "technology": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_id",
+        "session_id",
+        "attempt_id",
+        "condition_hash"
+      ],
+      "type": "object"
+    },
+    "MeasurementAttemptPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/schemas/MeasurementAttemptEnvelope"
+          },
+          "type": "array"
+        },
+        "next_cursor": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "items",
+        "next_cursor"
+      ],
+      "type": "object"
+    },
+    "MeasurementJobList": {
+      "items": {
+        "$ref": "#/schemas/MeasurementJobSnapshot"
+      },
+      "type": "array"
+    },
+    "MeasurementJobSnapshot": {
+      "additionalProperties": true,
+      "properties": {
+        "assigned_worker_id": {
+          "type": "string"
+        },
+        "claimed_at": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "excel_path": {
+          "type": "string"
+        },
+        "finished_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "job_uuid": {
+          "type": "string"
+        },
+        "lease_expires_at": {
+          "type": "string"
+        },
+        "options_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "payload_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "requested_by": {
+          "type": "string"
+        },
+        "session_id": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "started_at": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "status_message": {
+          "type": "string"
+        },
+        "stop_requested": {
+          "type": "boolean"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "excel_path"
+      ],
+      "type": "object"
+    },
+    "MeasurementJobStatusSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "counts": {
+          "additionalProperties": false,
+          "properties": {
+            "cancelled": {
+              "type": "integer"
+            },
+            "completed": {
+              "type": "integer"
+            },
+            "failed": {
+              "type": "integer"
+            },
+            "queued": {
+              "type": "integer"
+            },
+            "running": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "queued",
+            "running",
+            "completed",
+            "failed",
+            "cancelled"
+          ],
+          "type": "object"
+        },
+        "recent": {
+          "items": {
+            "$ref": "#/schemas/MeasurementJobSnapshot"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "counts",
+        "recent"
+      ],
+      "type": "object"
+    },
+    "MeasurementJobSubmitted": {
+      "additionalProperties": false,
+      "properties": {
+        "excel_path": {
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "job_uuid": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "excel_path",
+        "job_uuid"
+      ],
+      "type": "object"
+    },
+    "MeasurementResultEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "condition": {
+          "type": "object"
+        },
+        "measured_at": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "result": {
+          "type": "object"
+        },
+        "result_id": {
+          "type": "string"
+        },
+        "session_id": {
+          "type": "string"
+        },
+        "technology": {
+          "type": "string"
+        },
+        "test_name": {
+          "type": "string"
+        },
+        "verdict": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider_id",
+        "session_id",
+        "result_id"
+      ],
+      "type": "object"
+    },
+    "MeasurementResultEnvelopeList": {
+      "items": {
+        "$ref": "#/schemas/MeasurementResultEnvelope"
+      },
+      "type": "array"
+    },
+    "MeasurementWorkerSnapshot": {
+      "additionalProperties": true,
+      "properties": {
+        "capabilities_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "hostname": {
+          "type": "string"
+        },
+        "last_heartbeat_at": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "test_pc_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "worker_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "worker_id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ProviderCapabilitiesResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "product_line": {
+          "type": "string"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "runtime_limits": {
+          "type": "object"
+        },
+        "supported_artifact_types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "supported_job_types": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "supported_technologies": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "supports_cancel": {
+          "type": "boolean"
+        },
+        "supports_offline_queue": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "provider_id",
+        "product_line",
+        "supported_job_types",
+        "supported_technologies",
+        "supported_artifact_types",
+        "supports_cancel",
+        "supports_offline_queue"
+      ],
+      "type": "object"
+    },
+    "ProviderFeature": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "supported",
+            "read_only",
+            "unsupported",
+            "planned",
+            "provider_specific",
+            "restricted"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_id",
+        "label",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ProviderFieldDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "data_type": {
+          "enum": [
+            "string",
+            "ipv4",
+            "gpib_address"
+          ],
+          "type": "string"
+        },
+        "field_id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "field_id",
+        "label",
+        "data_type",
+        "required"
+      ],
+      "type": "object"
+    },
+    "ProviderTableDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/schemas/ProviderFieldDescriptor"
+          },
+          "type": "array"
+        },
+        "label": {
+          "type": "string"
+        },
+        "row_identity_columns": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "row_identity_source": {
+          "enum": [
+            "Col.HISTORY_CONDITION",
+            "Col.MATCH_DEFAULT"
+          ],
+          "type": "string"
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "table_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "table_id",
+        "label",
+        "sheet_name",
+        "row_identity_source",
+        "row_identity_columns",
+        "columns"
+      ],
+      "type": "object"
+    },
+    "ProviderUiDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "correction_tables": {
+          "items": {
+            "$ref": "#/schemas/CorrectionTableDescriptor"
+          },
+          "type": "array"
+        },
+        "display_name": {
+          "type": "string"
+        },
+        "equipment": {
+          "items": {
+            "$ref": "#/schemas/EquipmentConfigDescriptor"
+          },
+          "type": "array"
+        },
+        "features": {
+          "items": {
+            "$ref": "#/schemas/ProviderFeature"
+          },
+          "type": "array"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "reference_tables": {
+          "items": {
+            "$ref": "#/schemas/ReferenceTableDescriptor"
+          },
+          "type": "array"
+        },
+        "test_plan_tables": {
+          "items": {
+            "$ref": "#/schemas/ProviderTableDescriptor"
+          },
+          "type": "array"
+        },
+        "ui_version": {
+          "type": "integer"
+        },
+        "workbench_area_technologies": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "provider_id",
+        "display_name",
+        "ui_version",
+        "features",
+        "test_plan_tables",
+        "equipment",
+        "reference_tables",
+        "correction_tables",
+        "workbench_area_technologies"
+      ],
+      "type": "object"
+    },
+    "PublishedTestPlanRowView": {
+      "additionalProperties": false,
+      "properties": {
+        "antenna": {
+          "nullable": true,
+          "type": "string"
+        },
+        "capability_path": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "condition_hash": {
+          "type": "string"
+        },
+        "derived_kind": {
+          "enum": [
+            "afh_occupancy",
+            "antenna_sum"
+          ],
+          "nullable": true,
+          "type": "string"
+        },
+        "generation_key": {
+          "nullable": true,
+          "type": "string"
+        },
+        "location": {
+          "nullable": true,
+          "type": "string"
+        },
+        "mode_family": {
+          "nullable": true,
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "scope_revision": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "test_type": {
+          "nullable": true,
+          "type": "string"
+        },
+        "tone": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "condition_hash",
+        "capability_path",
+        "origin"
+      ],
+      "type": "object"
+    },
+    "PublishedTestPlanSummaryView": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "type": "string"
+        },
+        "plan_id": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "published_at": {
+          "nullable": true,
+          "type": "string"
+        },
+        "published_by": {
+          "nullable": true,
+          "type": "string"
+        },
+        "row_count": {
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "published"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "draft_id",
+        "project_id",
+        "status",
+        "row_count"
+      ],
+      "type": "object"
+    },
+    "PublishedTestPlanView": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "type": "string"
+        },
+        "generation_metadata_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "plan_id": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "published_at": {
+          "nullable": true,
+          "type": "string"
+        },
+        "published_by": {
+          "nullable": true,
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/schemas/PublishedTestPlanRowView"
+          },
+          "type": "array"
+        },
+        "scope_profile_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "scope_revision": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "draft_id",
+        "project_id",
+        "status",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "ReferenceTableDescriptor": {
+      "additionalProperties": false,
+      "properties": {
+        "columns": {
+          "items": {
+            "$ref": "#/schemas/ProviderFieldDescriptor"
+          },
+          "type": "array"
+        },
+        "label": {
+          "type": "string"
+        },
+        "sheet_name": {
+          "type": "string"
+        },
+        "table_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "table_id",
+        "label",
+        "sheet_name",
+        "columns"
+      ],
+      "type": "object"
+    },
+    "RemoveTestPlanDraftRowResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "type": "string"
+        },
+        "draft_row_id": {
+          "type": "integer"
+        },
+        "removed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "draft_id",
+        "draft_row_id",
+        "removed"
+      ],
+      "type": "object"
+    },
+    "ReplaceTestPlanDraftRowsRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "items": {
+            "$ref": "#/schemas/AddTestPlanDraftRowRequest"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "rows"
+      ],
+      "type": "object"
+    },
+    "ReplaceTestPlanDraftRowsResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "type": "string"
+        },
+        "replaced_count": {
+          "type": "integer"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/schemas/TestPlanDraftRowView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "draft_id",
+        "replaced_count",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "ReportAutomationQueueStats": {
+      "additionalProperties": true,
+      "properties": {
+        "cancelled": {
+          "type": "integer"
+        },
+        "completed": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        },
+        "oldest_queued_request_id": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "queued": {
+          "type": "integer"
+        },
+        "running": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "type": "object"
+    },
+    "ReportOutputDownloadGrant": {
+      "additionalProperties": false,
+      "properties": {
+        "download_url": {
+          "type": "string"
+        },
+        "expires_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "download_url",
+        "expires_at"
+      ],
+      "type": "object"
+    },
+    "ReportOutputMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_size": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "exists": {
+          "type": "boolean"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "relative_path": {
+          "type": "string"
+        },
+        "request_id": {
+          "type": "integer"
+        },
+        "storage_backend": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "file_name",
+        "relative_path",
+        "exists",
+        "byte_size",
+        "storage_backend"
+      ],
+      "type": "object"
+    },
+    "ReportOutputMetadataList": {
+      "items": {
+        "$ref": "#/schemas/ReportOutputMetadata"
+      },
+      "type": "array"
+    },
+    "ReportPreflightDataQuality": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "row_order": {
+          "nullable": true,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "row_order"
+      ],
+      "type": "object"
+    },
+    "ReportPreflightMissingSource": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "nullable": true,
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "reason": {
+          "enum": [
+            "missing_row",
+            "blocked_verdict"
+          ],
+          "type": "string"
+        },
+        "section": {
+          "type": "string"
+        },
+        "table_name": {
+          "type": "string"
+        },
+        "technology": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "technology",
+        "section",
+        "table_name",
+        "channel",
+        "label",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "ReportPreflightPerTech": {
+      "additionalProperties": false,
+      "properties": {
+        "complete": {
+          "type": "boolean"
+        },
+        "kind": {
+          "enum": [
+            "complete",
+            "incomplete",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "measured_count": {
+          "type": "integer"
+        },
+        "planned_total": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "technology": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "technology",
+        "measured_count",
+        "planned_total",
+        "kind",
+        "complete"
+      ],
+      "type": "object"
+    },
+    "ReportPreflightSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "data_quality": {
+          "items": {
+            "$ref": "#/schemas/ReportPreflightDataQuality"
+          },
+          "type": "array"
+        },
+        "has_data_quality_warnings": {
+          "type": "boolean"
+        },
+        "has_incomplete": {
+          "type": "boolean"
+        },
+        "has_missing_sources": {
+          "type": "boolean"
+        },
+        "missing_sources": {
+          "items": {
+            "$ref": "#/schemas/ReportPreflightMissingSource"
+          },
+          "type": "array"
+        },
+        "per_tech": {
+          "items": {
+            "$ref": "#/schemas/ReportPreflightPerTech"
+          },
+          "type": "array"
+        },
+        "published_plan_id": {
+          "nullable": true,
+          "type": "string"
+        },
+        "session_id": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "session_id",
+        "published_plan_id",
+        "per_tech",
+        "data_quality",
+        "missing_sources",
+        "has_incomplete",
+        "has_data_quality_warnings",
+        "has_missing_sources"
+      ],
+      "type": "object"
+    },
+    "ReportRequestSnapshot": {
+      "additionalProperties": true,
+      "properties": {
+        "artifact_roots_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "assigned_worker_id": {
+          "type": "string"
+        },
+        "claimed_at": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "error_message": {
+          "type": "string"
+        },
+        "generated_by": {
+          "type": "string"
+        },
+        "generated_paths_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "id": {
+          "type": "integer"
+        },
+        "idempotency_key": {
+          "type": "string"
+        },
+        "job_id": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "lease_expires_at": {
+          "type": "string"
+        },
+        "output_dir": {
+          "type": "string"
+        },
+        "report_run_id": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "session_id": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "techs_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "template_profile": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "warnings_json": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "ReportRequestSubmitted": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "type": "integer"
+        },
+        "session_id": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "session_id",
+        "status"
+      ],
+      "type": "object"
+    },
+    "StopMeasurementJobRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "StopMeasurementJobResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "type": "integer"
+        },
+        "stop_requested": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "job_id",
+        "stop_requested"
+      ],
+      "type": "object"
+    },
+    "SubmitMeasurementJobRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "excel_path": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "options": {
+          "nullable": true,
+          "type": "object"
+        },
+        "payload": {
+          "nullable": true,
+          "type": "object"
+        },
+        "requested_by": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "excel_path"
+      ],
+      "type": "object"
+    },
+    "SubmitReportRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_roots": {
+          "items": {
+            "type": "string"
+          },
+          "nullable": true,
+          "type": "array"
+        },
+        "generated_by": {
+          "default": "",
+          "type": "string"
+        },
+        "idempotency_key": {
+          "type": "string"
+        },
+        "output_dir": {
+          "type": "string"
+        },
+        "output_formats": {
+          "items": {
+            "type": "string"
+          },
+          "nullable": true,
+          "type": "array"
+        },
+        "provider_id": {
+          "type": "string"
+        },
+        "report_types": {
+          "items": {
+            "type": "string"
+          },
+          "nullable": true,
+          "type": "array"
+        },
+        "template_profile": {
+          "default": "fcc-default",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "TestPlanDraftRowView": {
+      "additionalProperties": false,
+      "properties": {
+        "antenna": {
+          "nullable": true,
+          "type": "string"
+        },
+        "capability_path": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "derived_kind": {
+          "enum": [
+            "afh_occupancy",
+            "antenna_sum"
+          ],
+          "nullable": true,
+          "type": "string"
+        },
+        "draft_row_id": {
+          "type": "integer"
+        },
+        "generation_key": {
+          "nullable": true,
+          "type": "string"
+        },
+        "location": {
+          "nullable": true,
+          "type": "string"
+        },
+        "mode_family": {
+          "nullable": true,
+          "type": "string"
+        },
+        "origin": {
+          "type": "string"
+        },
+        "scope_revision": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "test_type": {
+          "nullable": true,
+          "type": "string"
+        },
+        "tone": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "draft_row_id",
+        "capability_path",
+        "origin"
+      ],
+      "type": "object"
+    },
+    "TestPlanDraftSummaryView": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "nullable": true,
+          "type": "string"
+        },
+        "draft_id": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "row_count": {
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "updated_at": {
+          "nullable": true,
+          "type": "string"
+        }
+      },
+      "required": [
+        "draft_id",
+        "project_id",
+        "status",
+        "row_count"
+      ],
+      "type": "object"
+    },
+    "TestPlanDraftView": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "nullable": true,
+          "type": "string"
+        },
+        "created_by": {
+          "nullable": true,
+          "type": "string"
+        },
+        "draft_id": {
+          "type": "string"
+        },
+        "generation_metadata_json": {
+          "nullable": true,
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/schemas/TestPlanDraftRowView"
+          },
+          "type": "array"
+        },
+        "scope_revision": {
+          "nullable": true,
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "draft_id",
+        "project_id",
+        "status",
+        "rows"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationCatalogue": {
+      "additionalProperties": false,
+      "properties": {
+        "axes": {
+          "items": {
+            "$ref": "#/schemas/TestPlanGenerationCatalogueAxis"
+          },
+          "type": "array"
+        },
+        "bands_per_subfamily": {
+          "additionalProperties": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "type": "object"
+        },
+        "limits": {
+          "$ref": "#/schemas/TestPlanGenerationLimits"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "stages": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "technology": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "technology",
+        "stages",
+        "axes",
+        "bands_per_subfamily",
+        "revision",
+        "sha256",
+        "limits"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationCatalogueAxis": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "values"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationCatalogueResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "catalogues": {
+          "additionalProperties": {
+            "$ref": "#/schemas/TestPlanGenerationCatalogue"
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "catalogues"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationJobResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "draft_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error_code": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "error_message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "matrix_revision": {
+          "type": "string"
+        },
+        "matrix_sha256": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "request_sha256": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "job_id",
+        "project_id",
+        "status",
+        "request_sha256",
+        "matrix_revision",
+        "matrix_sha256",
+        "draft_id",
+        "error_code",
+        "error_message",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "browser_cache_page_limit": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "claim_batch_size": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "dom_row_limit": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "hard_row_limit": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "idle_fold_p95_ms": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "initial_payload_row_limit": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "keyset_page_p95_ms": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "lease_seconds": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "page_size": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "poll_interval_seconds": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "representative_sample_size": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "serialized_page_bytes": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "representative_sample_size",
+        "hard_row_limit",
+        "page_size",
+        "lease_seconds",
+        "poll_interval_seconds",
+        "claim_batch_size",
+        "idle_fold_p95_ms",
+        "keyset_page_p95_ms",
+        "serialized_page_bytes",
+        "initial_payload_row_limit",
+        "browser_cache_page_limit",
+        "dom_row_limit"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationMetadataResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "job_id": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_id",
+        "status",
+        "draft_id",
+        "metadata"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationPreviewResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "catalogue_revision": {
+          "type": "string"
+        },
+        "catalogue_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "policy_revision": {
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "production_estimate": {
+          "additionalProperties": false,
+          "properties": {
+            "derived_count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "direct_count": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "exact_count": {
+              "minimum": 0,
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "exceeds_limit": {
+              "type": "boolean"
+            },
+            "lower_bound": {
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "exact_count",
+            "lower_bound",
+            "exceeds_limit",
+            "direct_count",
+            "derived_count"
+          ],
+          "type": "object"
+        },
+        "production_matrix": {
+          "additionalProperties": false,
+          "properties": {
+            "purpose": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "purpose",
+            "revision",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        "representative_matrix": {
+          "additionalProperties": false,
+          "properties": {
+            "purpose": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "sha256": {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "purpose",
+            "revision",
+            "sha256"
+          ],
+          "type": "object"
+        },
+        "representative_sample": {
+          "items": {
+            "$ref": "#/schemas/TestPlanGenerationSampleRow"
+          },
+          "type": "array"
+        },
+        "request_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_sha256",
+        "production_matrix",
+        "production_estimate",
+        "representative_matrix",
+        "representative_sample",
+        "catalogue_revision",
+        "catalogue_sha256",
+        "policy_revision",
+        "policy_sha256",
+        "fingerprint"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationRequest": {
+      "oneOf": [
+        {
+          "$ref": "#/schemas/BtGenerationRequest"
+        },
+        {
+          "$ref": "#/schemas/BleGenerationRequest"
+        },
+        {
+          "$ref": "#/schemas/WlanBaseGenerationRequest"
+        },
+        {
+          "$ref": "#/schemas/WlanPretestGenerationRequest"
+        },
+        {
+          "$ref": "#/schemas/WlanMainTestGenerationRequest"
+        }
+      ]
+    },
+    "TestPlanGenerationRowPageResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "type": "string"
+        },
+        "next_after_draft_row_id": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rows": {
+          "items": {
+            "$ref": "#/schemas/TestPlanGenerationRowView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "draft_id",
+        "rows",
+        "next_after_draft_row_id"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationRowView": {
+      "additionalProperties": false,
+      "properties": {
+        "antenna": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capability_path": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "condition_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "derived_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "draft_row_id": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "generated_from_capability": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generation_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode_family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": "string"
+        },
+        "packet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "row_seq": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scope_revision": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "test_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "draft_row_id",
+        "row_seq",
+        "capability_path",
+        "origin",
+        "scope_revision",
+        "generation_key",
+        "test_type",
+        "antenna",
+        "mode_family",
+        "tone",
+        "location",
+        "packet",
+        "derived_kind",
+        "generated_from_capability",
+        "condition_hash"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationSampleRow": {
+      "additionalProperties": false,
+      "properties": {
+        "antenna": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "capability_path": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "condition_hash": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "derived_kind": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generated_from_capability": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "generation_key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "location": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mode_family": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "origin": {
+          "type": "string"
+        },
+        "packet": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scope_revision": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "test_type": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "tone": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "capability_path",
+        "origin",
+        "scope_revision",
+        "generation_key",
+        "test_type",
+        "antenna",
+        "mode_family",
+        "tone",
+        "location",
+        "packet",
+        "derived_kind",
+        "generated_from_capability",
+        "condition_hash"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationSubmitRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "preview": {
+          "$ref": "#/schemas/TestPlanGenerationPreviewResponse"
+        },
+        "request": {
+          "$ref": "#/schemas/TestPlanGenerationRequest"
+        }
+      },
+      "required": [
+        "request",
+        "preview"
+      ],
+      "type": "object"
+    },
+    "TestPlanGenerationSubmittedResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "job_id": {
+          "type": "string"
+        },
+        "matrix_revision": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "request_sha256": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "job_id",
+        "project_id",
+        "status",
+        "request_sha256",
+        "matrix_revision"
+      ],
+      "type": "object"
+    },
+    "TestPlanImportResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "audit": {
+          "$ref": "#/schemas/ImportAuditView"
+        },
+        "draft_id": {
+          "nullable": true,
+          "type": "string"
+        },
+        "excluded": {
+          "items": {
+            "$ref": "#/schemas/ExcludedImportRowView"
+          },
+          "type": "array"
+        },
+        "import_id": {
+          "type": "string"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/schemas/ImportIssueView"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "import_id",
+        "draft_id",
+        "audit",
+        "issues",
+        "excluded"
+      ],
+      "type": "object"
+    },
+    "ValidateTestPlanDraftResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "draft_id": {
+          "type": "string"
+        },
+        "error_count": {
+          "type": "integer"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/schemas/ValidationIssueView"
+          },
+          "type": "array"
+        },
+        "warning_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "draft_id",
+        "issues",
+        "error_count",
+        "warning_count"
+      ],
+      "type": "object"
+    },
+    "ValidationIssueView": {
+      "additionalProperties": false,
+      "properties": {
+        "capability_path": {
+          "items": {
+            "type": "string"
+          },
+          "nullable": true,
+          "type": "array"
+        },
+        "condition_hash": {
+          "nullable": true,
+          "type": "string"
+        },
+        "issue_type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "issue_type",
+        "severity",
+        "message"
+      ],
+      "type": "object"
+    },
+    "WlanBaseGenerationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "antennas": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands_per_subfamily": {
+          "additionalProperties": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minProperties": 1,
+          "type": "object"
+        },
+        "bandwidths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "channels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "modulations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "stage": {
+          "const": "base"
+        },
+        "technologies": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "technology": {
+          "const": "WLAN"
+        },
+        "tests": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "technology",
+        "stage",
+        "technologies",
+        "bands",
+        "bandwidths",
+        "channels",
+        "modulations",
+        "tests",
+        "antennas",
+        "bands_per_subfamily"
+      ],
+      "type": "object"
+    },
+    "WlanMainTestGenerationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "antennas": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands_per_subfamily": {
+          "additionalProperties": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minProperties": 1,
+          "type": "object"
+        },
+        "bandwidths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "channels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "modulations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "selected_channels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "source_session_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "stage": {
+          "const": "main_test"
+        },
+        "technologies": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "technology": {
+          "const": "WLAN"
+        },
+        "tests": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "worst_decision_snapshot_revision": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "technology",
+        "stage",
+        "technologies",
+        "bands",
+        "bandwidths",
+        "channels",
+        "modulations",
+        "tests",
+        "antennas",
+        "bands_per_subfamily",
+        "source_session_id",
+        "selected_channels",
+        "worst_decision_snapshot_revision"
+      ],
+      "type": "object"
+    },
+    "WlanPretestGenerationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "antennas": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "bands_per_subfamily": {
+          "additionalProperties": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "minProperties": 1,
+          "type": "object"
+        },
+        "bandwidths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "channels": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "modulations": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "stage": {
+          "const": "pretest"
+        },
+        "technologies": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "technology": {
+          "const": "WLAN"
+        },
+        "tests": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "technology",
+        "stage",
+        "technologies",
+        "bands",
+        "bandwidths",
+        "channels",
+        "modulations",
+        "tests",
+        "antennas",
+        "bands_per_subfamily"
+      ],
+      "type": "object"
+    }
+  },
+  "version": "1.0.0"
+}

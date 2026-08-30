@@ -1,0 +1,83 @@
+# 설치 선언 — fcc-test-contracts 레인
+#
+# 이 파일은 모노레포에서 리뷰되고, 추출 패키저가 납품 상자의 **루트**로 옮겨 싣는다
+# (매니페스트 entry `kind: packaging_manifest`, future_path = "pyproject.toml").
+# 운영자 판정 2026-08-15 안 B: 버전·의존은 스크립트가 만드는 리터럴이 아니라
+# 저장소에 남는 결정이어야 한다.
+#
+# ⚠️ 이 파일의 모든 값은 파생이다. 발명한 값이 없다는 것이 봉인 대상이고
+#    tests/test_repo_split_packaging_axis.py 가 각 줄의 출처를 대조한다.
+
+[build-system]
+# setuptools 62.5.0 릴리스 노트: "The [project] configuration interface in
+# pyproject.toml is now fully supported." (공식 history) — [tool.setuptools]
+# 하위 테이블(packages.find)을 함께 쓰므로 그 이전 버전은 성립하지 않는다.
+requires = ["setuptools>=62.5"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# name = 매니페스트 `repositories` 의 레인 키. package_names 의
+# `fcc_test_contracts` 는 **import 패키지 이름**이지 distribution 이름이 아니다.
+name = "fcc-test-contracts"
+# version = 이 레인이 이미 소유한 npm 배포물 packages/api-artifacts/package.json
+# 과 상등. src/_version.py 는 fcc-unlicensed-headless 소유(GUI 앱 버전)라
+# 두 레인의 배포를 GUI 릴리스에 묶게 되므로 쓰지 않는다.
+version = "0.1.0"
+description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
+# requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
+# (`FROM python:3.11-slim`)에서 파생.
+requires-python = ">=3.11"
+# 이 레인은 서드파티 하드 의존이 0 이다. 매니페스트가 그것을 P0 로 선언하고
+# (`forbidden_external` 7종 + `optional_external` 은 함수 내부 lazy + ImportError
+# 가드만 허용) 별도 인터프리터 실행으로 판정한다. 실측: 상자의 런타임 코드에
+# 모듈 레벨 서드파티 import 0건.
+dependencies = []
+
+[project.optional-dependencies]
+# 매니페스트 `optional_external` 에서 파생. jwt 는 oidc_principal_resolver 가
+# auth_mode=oidc_jwt 배포에서만 함수 안에서 lazy import 하므로, 이것이 없어도
+# 패키지는 설치되고 import 된다. 하한은 requirements-central.txt SSOT.
+oidc = ["PyJWT[crypto]>=2.8.0"]
+# 상자가 자기 suite 를 싣는다(매니페스트 `lane_test_suite`). 하한은
+# requirements.txt:33 SSOT. 이 레인의 테스트는 서드파티를 더 쓰지 않는다(실측).
+test = ["pytest>=7.0.0"]
+
+[tool.setuptools.packages.find]
+# 상자의 최상위 import 패키지 하나. artifacts/ · packages/ · scripts/ · tests/ 는
+# 배포 대상이 아니다 — 특히 scripts/ 는 상자에 `__init__.py` 가 **의도적으로 없고**
+# 그 사실이 다른 곳에서 load-bearing 이다(contract_cli.sibling_module, 실행 축의
+# PYTHONPATH 파생). 휠에 담으려면 손으로 유지하는 py-modules 목록이 필요하고
+# 그것이 SPLIT-1 이 갚은 함정이므로 담지 않는다.
+include = ["fcc_test_contracts*"]
+# 실측: 상자의 fcc_test_contracts/ 에 `__init__.py` 가 없다(PEP 420 암묵
+# 네임스페이스). setuptools 기본값도 true 지만, 그 트리 모양이 이 선언이 성립하는
+# 근거이므로 명시한다 — 상자에 `__init__.py` 를 새로 넣는 것은 트리 모양 변경이고
+# 레이아웃 기록·소유권·entry_point_roots 를 함께 건드린다.
+namespaces = true
+
+# ⚠️ 사본이다 — TOML 에는 include 가 없다. 그래서 루트 pyproject.toml 의
+#    testpaths/markers/addopts 와 **상등 파리티 게이트**를 함께 세운다
+#    (tests/test_repo_split_packaging_axis.py). 이 저장소의 표준 답:
+#    강제된 사본에는 파리티 게이트를 단다.
+#
+#    세 키를 부분집합으로 옮기지 않는 이유: 이 축이 묻는 것은 "상자를 받은 팀이
+#    **우리와 같은** 게이트를 돌 수 있는가"이고, 다른 pytest 설정으로 도는 상자는
+#    우리 게이트를 도는 것이 아니다. addopts 의 `-p no:faulthandler` 가 provider
+#    쪽 사유(Windows/Python 3.13 OOXML)에서 왔더라도 같이 간다.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: 순수 단위 테스트 (하드웨어/네트워크/실제 파일 불필요)",
+    "integration: 통합 테스트 (tempfile, 실제 Excel I/O 사용)",
+    "hardware: 하드웨어 필수 (스펙트럼 분석기, Appium, Android)",
+    "database: DB 통합 테스트 (SQLite, 실제 파일 I/O)",
+    "bench: 정량 latency budget 측정 (GC-sensitive, 권장 단독 실행 — pytest -m bench)",
+    "gui: 실제 QApplication/위젯을 만들고 Qt 이벤트 루프를 펌프하는 PySide6 테스트 (전체 회귀의 누적 네이티브 압박 하에서 access violation 크래시 → 단독 실행 -m gui)",
+    "invariant: architecture/hygiene/SSOT/contract-drift 가드 (dataclass/AST/파일시스템/frontmatter 검사 — 장비 불필요). ubuntu CI 경량 게이트 대상 (conftest _INVARIANT_FILENAME_TOKENS SSOT 자동 부착).",
+]
+# Disable pytest's faulthandler plugin on Windows/Python 3.13 because it emits
+# handled first-chance "Windows fatal exception: access violation" diagnostics
+# during Office Open XML ZIP/XML tests even when the process exits successfully.
+# Real failures still surface through non-zero exits and assertions.
+addopts = "--strict-markers -p no:faulthandler"

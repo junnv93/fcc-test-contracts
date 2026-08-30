@@ -1,0 +1,62 @@
+{
+  "$id": "provider_service_deployment_evidence.schema.v1.json",
+  "schema_version": 1,
+  "status": "planning_contract",
+  "owner_repository": "fcc-test-contracts",
+  "description": "Evidence manifest for proving a provider headless API is deployed under an operations-managed service boundary.",
+  "required_top_level": [
+    "schema_version",
+    "provider_id",
+    "host_id",
+    "deployed_at",
+    "service",
+    "environment",
+    "health_check",
+    "log_collection",
+    "monitoring_alert",
+    "backup_scope"
+  ],
+  "required_provider_environment": [
+    "FCC_HEADLESS_DB_PATH",
+    "FCC_HEADLESS_ARTIFACT_ROOTS",
+    "FCC_HEADLESS_REPORT_OUTPUT_DIR",
+    "FCC_HEADLESS_LOG_DIR",
+    "FCC_HEADLESS_HEALTH_URL"
+  ],
+  "service_required_fields": [
+    "service_name",
+    "service_manager",
+    "start_mode",
+    "command"
+  ],
+  "service_command_rules": [
+    "command must launch uvicorn",
+    "command must include --factory",
+    "command must launch headless_api_app:create_app"
+  ],
+  "health_check_required_fields": [
+    "url",
+    "status_code",
+    "checked_at"
+  ],
+  "log_collection_required_fields": [
+    "enabled",
+    "log_dir",
+    "collector",
+    "retention_days"
+  ],
+  "monitoring_alert_required_fields": [
+    "enabled",
+    "health_url",
+    "alert_channel",
+    "alert_target",
+    "interval_seconds"
+  ],
+  "backup_scope_required_fields": [
+    "database_path",
+    "artifact_roots",
+    "report_output_dir"
+  ],
+  "secret_redaction_rule": "Environment keys containing SECRET, TOKEN, PASSWORD, CREDENTIAL, or PRIVATE must be absent or redacted as <redacted>, ***, redacted, or REDACTED.",
+  "notes": "The validator checks evidence metadata only. It does not install Windows services, call health endpoints, create backups, copy files, delete files, or read file bytes."
+}

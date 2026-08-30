@@ -1,0 +1,132 @@
+{
+  "asyncapi": "3.0.0",
+  "channels": {
+    "/platform/chambers/events": {
+      "address": "/platform/chambers/events",
+      "description": "WebSocket channel emitting real-time chamber progress events. Server sends JSON frames; clients must not send messages. Offer the bearer credential as a WebSocket subprotocol pair — `['fcc.bearer.v1', <token>]` — the server echoes only the sentinel (never the token) back via the handshake response.",
+      "messages": {
+        "ChamberProgressEvent": {
+          "$ref": "#/components/messages/ChamberProgressEvent"
+        },
+        "ChamberProgressPing": {
+          "$ref": "#/components/messages/ChamberProgressPing"
+        }
+      },
+      "x-fcc-ws-bearer-subprotocol": "fcc.bearer.v1"
+    }
+  },
+  "components": {
+    "messages": {
+      "ChamberProgressEvent": {
+        "contentType": "application/json",
+        "name": "ChamberProgressEvent",
+        "payload": {
+          "$ref": "#/components/schemas/ChamberProgressEvent"
+        },
+        "summary": "A single chamber measurement progress snapshot fanned out from a node heartbeat (C1 heartbeat-carried progress).",
+        "title": "Chamber progress event"
+      },
+      "ChamberProgressPing": {
+        "contentType": "application/json",
+        "name": "ChamberProgressPing",
+        "payload": {
+          "additionalProperties": true,
+          "properties": {
+            "connection_id": {
+              "type": "string"
+            },
+            "kind": {
+              "const": "ping",
+              "type": "string"
+            },
+            "payload": {
+              "items": {},
+              "type": "array"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "type": "object"
+        },
+        "summary": "Periodic server ping used to detect half-open / dead client sockets (mirror of the session WS heartbeat).",
+        "title": "Keep-alive ping"
+      }
+    },
+    "schemas": {
+      "ChamberProgressEvent": {
+        "additionalProperties": false,
+        "properties": {
+          "chamber_id": {
+            "type": "string"
+          },
+          "kind": {
+            "const": "chamber_progress",
+            "type": "string"
+          },
+          "occurred_at": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/ChamberSessionProgress"
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "chamber_id",
+          "progress"
+        ],
+        "type": "object"
+      },
+      "ChamberSessionProgress": {
+        "additionalProperties": false,
+        "properties": {
+          "completed": {
+            "type": "integer"
+          },
+          "is_running": {
+            "type": "boolean"
+          },
+          "ratio": {
+            "type": "number"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "is_running",
+          "completed",
+          "total",
+          "ratio"
+        ],
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "Real-time chamber measurement progress relay (멀티챔버 P7/B4). The central hub fans out node heartbeat-carried progress (ADR-0015 Option B — node push). Subscribe via the WebSocket channel below; the GET /platform/chambers polling read remains the fallback. AuthZ (W3-4, 2026-08-01): browser `WebSocket` cannot set a custom `Authorization` header on the upgrade request, so the bearer credential rides the `Sec-WebSocket-Protocol` offer instead — `['fcc.bearer.v1', <token>]` (RFC 6455 §4.1). See `x-fcc-ws-bearer-subprotocol` on the channel below. A genuine `Authorization` header (non-browser clients) always takes precedence over this overlay.",
+    "title": "FCC Platform Read API Chamber Progress Events",
+    "version": "1.0.0",
+    "x-fcc-api-compatibility-major": 1
+  },
+  "operations": {
+    "subscribeChamberProgress": {
+      "action": "receive",
+      "channel": {
+        "$ref": "#/channels//platform/chambers/events"
+      },
+      "summary": "Receive real-time chamber progress events from the hub.",
+      "x-fcc-permission": "platform:read"
+    }
+  }
+}
