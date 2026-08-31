@@ -7,6 +7,7 @@
   "tests/test_inbound_http_ssot_p1_e.py::TestSSOTAdoptionByCallers::test_no_inline_traceparent_parsing_in_session_router",
   "tests/test_inbound_http_ssot_p1_e.py::TestSSOTAdoptionByCallers::test_session_router_imports_helper",
   "tests/test_inbound_http_ssot_p1_e.py::TestSSOTAdoptionByCallers::test_session_router_ws_handler_uses_ws_ssot",
+  "tests/test_lane_reachability_axis.py::TestTheMeasurementTreeIsPresentInTheMonorepo::test_the_monorepo_can_measure",
   "tests/test_oidc_principal_resolver.py::TestWsBearerSubprotocolCrossLanguageParity::test_encoding_rule_matches_python_ssot",
   "tests/test_oidc_principal_resolver.py::TestWsBearerSubprotocolCrossLanguageParity::test_normal_form_unrelated_ts_file_is_not_silently_satisfying",
   "tests/test_oidc_principal_resolver.py::TestWsBearerSubprotocolCrossLanguageParity::test_sentinel_constant_matches_python_ssot",
