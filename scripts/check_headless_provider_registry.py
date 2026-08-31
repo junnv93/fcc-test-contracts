@@ -62,6 +62,7 @@ def main(argv: list[str] | None = None) -> int:
         from fcc_test_contracts.headless.provider_registry import (
             load_provider_registry,
             validate_registry_contract_identities,
+            validate_registry_naming,
         )
         # Sibling entry point. Resolved through contract_cli because the two
         # trees disagree on whether ``scripts/`` is a package, and importing the
@@ -71,6 +72,11 @@ def main(argv: list[str] | None = None) -> int:
         ).main
 
         registry = load_provider_registry(registry_path, PROJECT_ROOT)
+        # ⚠️ Naming first: it asks whether the DOCUMENT is well formed, and
+        # identity asks whether the document AGREES WITH an artifact. Ask the
+        # first question first, or a mis-named new provider is reported as an
+        # identity mismatch and the author goes looking at the wrong file.
+        validate_registry_naming(registry)
         validate_registry_contract_identities(registry)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(json.dumps({

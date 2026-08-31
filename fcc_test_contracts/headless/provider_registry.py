@@ -20,6 +20,7 @@ declares ``dependencies = []`` and this module keeps that true (stdlib only).
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -31,6 +32,7 @@ __all__ = [
     'ProviderRegistryError',
     'load_provider_registry',
     'validate_registry_contract_identities',
+    'validate_registry_naming',
 ]
 
 
@@ -110,6 +112,66 @@ def validate_registry_contract_identities(registry: ProviderRegistry) -> None:
     """Ensure registry identities match each referenced contract artifact."""
     for provider in registry.providers:
         provider.validate_contract_identity()
+
+
+# -- naming axis --------------------------------------------------------------
+#
+# ⚠️ **Nothing enforced these names, and the three that exist already disagree.**
+# Measured 2026-08-31: `fcc-unlicensed-conducted` has no `-headless`,
+# `fcc-mmwave-headless` pairs with a single-token `mmwave`, and
+# `fcc-licensed-headless` pairs with `licensed-conducted` whose first token is
+# not `fcc`. Three entries, three different shapes -- because the only thing
+# saying what the shape should be was habit.
+#
+# KC settled the rule (operator, 2026-08-31):
+#
+#     provider_id  = <scheme>-<test-kind>-headless
+#     product_line = <scheme>-<test-kind>-<method>
+#
+# The first token is the **certification scheme** (`fcc`, `kc`, ...) and the two
+# fields must agree on it. Lowercase kebab throughout: these strings must match
+# the artifact byte-for-byte and are unique columns in the central database, so
+# one capital letter is a mismatch nobody sees until an insert fails.
+#
+# ⚠️ **This is a ratchet, not a rewrite.** Renaming a live provider is not a
+# naming change -- measurement rows hang off `provider_id`, so it is a data
+# migration. The three below are recorded as predating the rule; the direction
+# is for this set to SHRINK, never grow. A fourth provider does not get in here.
+NAMING_GRANDFATHERED = frozenset({
+    'fcc-unlicensed-conducted',
+    'fcc-mmwave-headless',
+    'fcc-licensed-headless',
+})
+
+_PROVIDER_ID_SHAPE = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)+-headless$')
+_PRODUCT_LINE_SHAPE = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)+$')
+
+
+def validate_registry_naming(registry: 'ProviderRegistry') -> None:
+    """Refuse a NEW provider whose identity does not follow the settled shape.
+
+    Grandfathered entries are skipped by name -- see ``NAMING_GRANDFATHERED``.
+    """
+    for entry in registry.providers:
+        if entry.provider_id in NAMING_GRANDFATHERED:
+            continue
+        if not _PROVIDER_ID_SHAPE.match(entry.provider_id):
+            raise ProviderRegistryError(
+                f'{entry.provider_id!r} does not match '
+                '<scheme>-<test-kind>-headless (lowercase kebab)'
+            )
+        if not _PRODUCT_LINE_SHAPE.match(entry.product_line):
+            raise ProviderRegistryError(
+                f'{entry.product_line!r} does not match '
+                '<scheme>-<test-kind>-<method> (lowercase kebab)'
+            )
+        scheme = entry.provider_id.split('-', 1)[0]
+        line_scheme = entry.product_line.split('-', 1)[0]
+        if scheme != line_scheme:
+            raise ProviderRegistryError(
+                f'{entry.provider_id!r} and {entry.product_line!r} disagree on the '
+                f'certification scheme ({scheme!r} vs {line_scheme!r})'
+            )
 
 
 def _parse_registry(

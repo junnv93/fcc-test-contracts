@@ -15,6 +15,7 @@ import json
 import subprocess
 import sys
 import unittest
+import unittest.mock
 from pathlib import Path
 
 
@@ -103,9 +104,14 @@ class TestTheCheckerRunsInThisTree(unittest.TestCase):
         self.assertEqual('registry_usage_error', payload['error']['code'])
 
     def test_an_identity_mismatch_is_refused(self) -> None:
-        """The registry and the artifact must agree on who the provider is."""
+        """The registry and the artifact must agree on who the provider is.
+
+        ⚠️ The name used here is deliberately WELL FORMED — a malformed one is
+        stopped by the naming rule first and would never reach this check, so it
+        would prove nothing about identity.
+        """
         result = _run(
-            _registry((('wrong-id', 'unlicensed-conducted',
+            _registry((('kc-unlicensed-headless', 'kc-unlicensed-conducted',
                         'artifacts/headless_api_contract.v1.json'),)),
             self.tmp,
         )
@@ -141,6 +147,106 @@ class TestTheCheckerRunsInThisTree(unittest.TestCase):
         )
         self.assertEqual(2, result.returncode, result.stdout)
         self.assertFalse(json.loads(result.stdout)['compatible'])
+
+
+class TestTheNamingRuleIsEnforcedForNewProviders(unittest.TestCase):
+    """⚠️ Nothing enforced these names, and the three that exist all disagree.
+
+    The rule (operator, 2026-08-31) is ``<scheme>-<kind>-headless`` paired with
+    ``<scheme>-<kind>-<method>``, agreeing on the first token. A ratchet, not a
+    rewrite: renaming a live provider is a data migration, not a rename, because
+    measurement rows hang off ``provider_id``.
+    """
+
+    def setUp(self) -> None:
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def _kc(self, provider_id: str, product_line: str) -> subprocess.CompletedProcess:
+        """KC's own artifact does not exist yet, so borrow the SSOT's identity.
+
+        The naming axis runs before compatibility, so an identity mismatch on the
+        artifact is not what we are measuring here -- we assert the *naming*
+        message specifically.
+        """
+        return _run(_registry(((provider_id, product_line,
+                                'artifacts/headless_api_contract.v1.json'),)), self.tmp)
+
+    def test_the_settled_kc_identity_passes_the_naming_rule(self) -> None:
+        """It must not trip on naming — whatever else it trips on."""
+        result = self._kc('kc-unlicensed-headless', 'kc-unlicensed-conducted')
+        self.assertNotIn('does not match', result.stdout)
+        self.assertNotIn('disagree on the certification scheme', result.stdout)
+
+    def test_a_capital_letter_is_refused(self) -> None:
+        """These strings are unique DB columns and must match byte-for-byte."""
+        result = self._kc('kc-Unlicensed-headless', 'kc-unlicensed-conducted')
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn('does not match', json.loads(result.stdout)['error']['message'])
+
+    def test_a_missing_headless_suffix_is_refused(self) -> None:
+        result = self._kc('kc-unlicensed-conducted', 'kc-unlicensed-conducted')
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn('does not match', json.loads(result.stdout)['error']['message'])
+
+    def test_a_scheme_disagreement_is_refused(self) -> None:
+        """⚠️ The two fields naming different schemes is the silent one."""
+        result = self._kc('kc-unlicensed-headless', 'fcc-unlicensed-conducted')
+        self.assertEqual(2, result.returncode, result.stdout)
+        self.assertIn(
+            'disagree on the certification scheme',
+            json.loads(result.stdout)['error']['message'],
+        )
+
+    def test_the_grandfathered_three_still_pass(self) -> None:
+        """The ratchet must not break what is already deployed."""
+        result = _run(_registry(PUBLISHED), self.tmp)
+        self.assertEqual(0, result.returncode, result.stdout)
+
+    def test_the_grandfathered_set_is_exactly_the_three_that_predate_the_rule(self) -> None:
+        """⚠️ Growth here is how a ratchet becomes an escape hatch."""
+        from fcc_test_contracts.headless.provider_registry import NAMING_GRANDFATHERED
+        self.assertEqual(
+            {'fcc-unlicensed-conducted', 'fcc-mmwave-headless', 'fcc-licensed-headless'},
+            set(NAMING_GRANDFATHERED),
+            'a fourth provider does not get in here — the direction is to shrink',
+        )
+
+    def test_every_grandfathered_name_really_would_fail_the_rule(self) -> None:
+        """Non-vacuity: a name that would pass anyway does not need grandfathering.
+
+        ⚠️ Without this, the set could quietly accumulate names that comply, and
+        then it stops being a record of debt and becomes a list nobody reads.
+        """
+        from fcc_test_contracts.headless import provider_registry as reg
+
+        published = {pid: line for pid, line, _ in PUBLISHED}
+
+        class _Entry:
+            def __init__(self, provider_id: str, product_line: str) -> None:
+                self.provider_id = provider_id
+                self.product_line = product_line
+
+        class _Registry:
+            def __init__(self, entries) -> None:
+                self.providers = tuple(entries)
+
+        for provider_id in reg.NAMING_GRANDFATHERED:
+            self.assertIn(
+                provider_id, published,
+                'a grandfathered name that is not registered is dead weight',
+            )
+            document = _Registry([_Entry(provider_id, published[provider_id])])
+            with unittest.mock.patch.object(reg, 'NAMING_GRANDFATHERED', frozenset()):
+                with self.assertRaises(
+                    reg.ProviderRegistryError,
+                    msg=f'{provider_id} passes the rule — remove it from the set',
+                ):
+                    reg.validate_registry_naming(document)
 
 
 if __name__ == '__main__':
