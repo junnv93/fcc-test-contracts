@@ -14,14 +14,31 @@ from __future__ import annotations
 # 경로 계산이 한 칸씩 밀린다.
 from pathlib import Path as _Path
 
-PROJECT_ROOT = _Path(__file__).resolve().parents[1]
-SRC_ROOT = PROJECT_ROOT / 'src'
+# ⚠️ **모듈 위치에서 파생하면 안 된다** (2026-08-31 실측으로 배웠다). 이 모듈은
+# 「자기가 어느 저장소에 있나」가 아니라 **「지금 어느 저장소를 다루나」**를 알아야
+# 한다. 설치된 자리에서 `parents[1]` 은 `site-packages` 이고, 그러면 모든 경로
+# 계산이 엉뚱한 트리를 가리킨다 — 그리고 그 상태는 「경로가 맞다」와 같은 모양이다.
+# 대상 저장소는 **호출자가 있는 곳**이다.
+#
+# ⚠️ 찾지 못하면 조용히 계속하지 않는다 — 아래 함수들이 전부 이 뿌리 위에서 파일을
+# 세므로, 틀린 뿌리는 「대상이 없다」로 조용히 답한다.
+from pathlib import Path as _P
 
-_ROOT_IS_THE_REPOSITORY = (PROJECT_ROOT / 'pyproject.toml').is_file()
-assert _ROOT_IS_THE_REPOSITORY, (
-    f'PROJECT_ROOT 가 저장소 루트가 아니다: {PROJECT_ROOT} — 이 모듈이 패키지 안에서 '
-    '몇 단계 깊이에 있는지가 바뀌었다면 위 parents[1] 도 함께 바뀌어야 한다'
-)
+
+def _repository_root() -> _P:
+    """대상 저장소 = 호출자의 작업 디렉터리(또는 그 조상 중 첫 저장소)."""
+    here = _P.cwd().resolve()
+    for candidate in (here, *here.parents):
+        if (candidate / 'pyproject.toml').is_file() and (candidate / '.git').exists():
+            return candidate
+    raise RuntimeError(
+        f'대상 저장소를 찾지 못했다 (cwd={here}) — 이 도구는 저장소 안에서 실행해야 '
+        '한다. 모듈이 사는 곳이 아니라 **다루는 곳**이 기준이다.'
+    )
+
+
+PROJECT_ROOT = _repository_root()
+SRC_ROOT = PROJECT_ROOT / 'src'
 
 """Validate and optionally stage files from the headless extraction manifest.
 
