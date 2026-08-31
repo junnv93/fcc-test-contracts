@@ -2298,7 +2298,6 @@
           "type": "array"
         },
         "template_profile": {
-          "default": "fcc-default",
           "type": "string"
         }
       },

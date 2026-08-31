@@ -359,7 +359,26 @@ class TestTheContractPackageDoesNotGrow(unittest.TestCase):
     LINE_BUDGET = {
         'surface_test_plan.py': 1837,
         'surface_reports.py': 426,
-        'surface_sessions.py': 338,
+        # ⚠️ 2026-08-31 **재정정** — 338 → 351 은 오기 수정이 아니라 **정당한 상향**이고,
+        #    그 사실이 한 번 잘못 적혔다. 지우지 않고 왜 틀렸는지를 남긴다.
+        #
+        #    앞선 커밋(`73ec1ab`)은 *"`338` 은 이 레포에서 참인 적이 없다"* 고 적었다.
+        #    **반증**: `git show 57c7851:fcc_test_contracts/headless/surface_sessions.py
+        #    | wc -l` → **338**. 배송 시점에 338 은 정확했다.
+        #
+        #    실제로 일어난 일: 두 세션이 이 단일 체크아웃에서 동시에 일했고, 한쪽의
+        #    **미커밋 13줄**(아래 사유)이 트리에 있는 채로 다른 쪽이 크기를 쟀다.
+        #    351 = 338 + 그 13줄이다. 즉 진단이 거꾸로였다 — 기준선이 낡은 것이 아니라
+        #    **측정이 남의 작업을 자연 크기로 읽었다**.
+        #    ⚠️ **아무것도 red 가 되지 않았다**: 재는 쪽은 자기가 올린 기준선으로
+        #    통과했고 쓰는 쪽도 통과했다. 그 검사의 축에서 두 상태가 같은 값이었다.
+        #
+        #    **그래서 351 은 맞는 값이고 근거만 바뀐다.** 그 13줄은
+        #    `SubmitReportRequest.template_profile` 이 왜 기본값을 갖지 않는지를 적은
+        #    경고 주석이고(같은 커밋이 담고 있다), 이 ratchet 이 지키는 것은 **surface
+        #    성장**(DTO·operation 증가)이지 조용한 교차-provider 결함의 재발을 막는
+        #    주석이 아니다. 모듈이 줄면 이 값을 다시 내릴 것.
+        'surface_sessions.py': 351,
         'surface_jobs.py': 200,
         'surface_meta.py': 158,
         'surface_provider.py': 121,
