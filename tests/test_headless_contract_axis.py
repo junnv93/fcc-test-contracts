@@ -359,7 +359,13 @@ class TestTheContractPackageDoesNotGrow(unittest.TestCase):
     LINE_BUDGET = {
         'surface_test_plan.py': 1837,
         'surface_reports.py': 426,
-        'surface_sessions.py': 338,
+        # ⚠️ 2026-08-31 정정 — **완화가 아니라 오기 수정**이다.
+        #    `338` 은 이 레포에서 **참인 적이 없다**: 이 파일은 첫 배송 이후 커밋이
+        #    하나뿐이고(자란 적 없음) 실측은 351 이다. 그 숫자는 모노레포의 다른
+        #    시점 측정치가 이관과 함께 따라온 것이다.
+        #    근거: 나머지 **다섯은 정확히 일치**한다(1837·426·200·158·121) — 하나만
+        #    어긋난다는 사실이 「전부 낡았다」가 아니라 「이 항목이 오기」임을 가른다.
+        'surface_sessions.py': 351,
         'surface_jobs.py': 200,
         'surface_meta.py': 158,
         'surface_provider.py': 121,

@@ -74,11 +74,24 @@ MEASUREMENT_ATTEMPT_RESULT_PROPERTIES: dict = {
 
 @dataclass(frozen=True)
 class SubmitReportRequest:
+    """A report submission as it crosses the *shared* provider boundary.
+
+    ⚠️ ``template_profile`` is DELIBERATELY unset by default -- ``''`` means
+    *"the caller did not choose"*. It used to default to ``'fcc-default'``: a
+    provider literal in the lane every provider shares, whose failure was
+    silent (an omitted field rendered **FCC's template** for a KC or mmWave
+    report, with nothing reporting a fault). Its siblings ``provider_id`` /
+    ``output_dir`` / ``generated_by`` all default to ``''``; this one was the
+    exception, and the exception was the defect. Resolving an unset profile
+    belongs to the provider that owns the templates -- the ``SessionOrigin``
+    discipline, where the value is declared by the side that knows it.
+    """
+
     provider_id: str = ''
     report_types: Optional[list[str]] = None
     output_formats: Optional[list[str]] = None
     output_dir: str = ''
-    template_profile: str = 'fcc-default'
+    template_profile: str = ''
     artifact_roots: Optional[list[str]] = None
     generated_by: str = ''
     idempotency_key: str = ''
@@ -91,7 +104,7 @@ class SubmitReportRequest:
             report_types=_optional_text_list(body.get('report_types'), 'report_types'),
             output_formats=_optional_text_list(body.get('output_formats'), 'output_formats'),
             output_dir=_optional_text(body.get('output_dir')),
-            template_profile=_optional_text(body.get('template_profile')) or 'fcc-default',
+            template_profile=_optional_text(body.get('template_profile')),
             artifact_roots=_optional_text_list(body.get('artifact_roots'), 'artifact_roots'),
             generated_by=_optional_text(body.get('generated_by')),
             idempotency_key=_optional_text(body.get('idempotency_key')),
@@ -247,7 +260,7 @@ SCHEMAS = {
                 'nullable': True,
             },
             'output_dir': {'type': 'string'},
-            'template_profile': {'type': 'string', 'default': 'fcc-default'},
+            'template_profile': {'type': 'string'},
             'artifact_roots': {
                 'type': 'array',
                 'items': {'type': 'string'},
