@@ -19,18 +19,31 @@ import unittest.mock
 from pathlib import Path
 
 
+from fcc_test_contracts.common.tree_artifacts import resolve_repo_artifact
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKER = REPO_ROOT / 'scripts' / 'check_headless_provider_registry.py'
-ARTIFACTS = REPO_ROOT / 'artifacts'
+# ⚠️ Derived from the packager's own record, never spelled. These paths moved
+#    once already — from the box root into the importable package, because a
+#    wheel carries only what is inside one — and six literals here went stale
+#    silently, failing as *"contract_artifact does not exist"* rather than as
+#    *"this path is out of date"*. Asking the resolver means the next move
+#    costs nothing here.
+ARTIFACTS = resolve_repo_artifact(
+    __file__, 'docs/api/headless_api_contract.v1.json',
+).parent
+#: Box-relative form of the same directory, for registries that name artifacts
+#: the way a delivered tree does.
+ARTIFACTS_REL = ARTIFACTS.relative_to(REPO_ROOT).as_posix()
 
 #: The artifacts this tree publishes, as a registry would name them.
 PUBLISHED = (
     ('fcc-unlicensed-conducted', 'unlicensed-conducted',
-     'artifacts/headless_api_contract.v1.json'),
+     f'{ARTIFACTS_REL}/headless_api_contract.v1.json'),
     ('fcc-mmwave-headless', 'mmwave',
-     'artifacts/mmwave_headless_api_contract.example.json'),
+     f'{ARTIFACTS_REL}/mmwave_headless_api_contract.example.json'),
     ('fcc-licensed-headless', 'licensed-conducted',
-     'artifacts/licensed_headless_api_contract.example.json'),
+     f'{ARTIFACTS_REL}/licensed_headless_api_contract.example.json'),
 )
 
 
@@ -95,7 +108,7 @@ class TestTheCheckerRunsInThisTree(unittest.TestCase):
     def test_a_missing_artifact_is_refused(self) -> None:
         """Without this, a green run proves nothing about resolution."""
         result = _run(
-            _registry((('x-provider', 'x-line', 'artifacts/does_not_exist.json'),)),
+            _registry((('x-provider', 'x-line', f'{ARTIFACTS_REL}/does_not_exist.json'),)),
             self.tmp,
         )
         self.assertEqual(2, result.returncode, result.stdout)
@@ -112,7 +125,7 @@ class TestTheCheckerRunsInThisTree(unittest.TestCase):
         """
         result = _run(
             _registry((('kc-unlicensed-headless', 'kc-unlicensed-conducted',
-                        'artifacts/headless_api_contract.v1.json'),)),
+                        f'{ARTIFACTS_REL}/headless_api_contract.v1.json'),)),
             self.tmp,
         )
         self.assertEqual(2, result.returncode, result.stdout)
@@ -174,7 +187,7 @@ class TestTheNamingRuleIsEnforcedForNewProviders(unittest.TestCase):
         message specifically.
         """
         return _run(_registry(((provider_id, product_line,
-                                'artifacts/headless_api_contract.v1.json'),)), self.tmp)
+                                f'{ARTIFACTS_REL}/headless_api_contract.v1.json'),)), self.tmp)
 
     def test_the_settled_kc_identity_passes_the_naming_rule(self) -> None:
         """It must not trip on naming — whatever else it trips on."""
