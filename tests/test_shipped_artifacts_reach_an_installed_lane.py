@@ -20,6 +20,7 @@ that was never broken.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -61,11 +62,43 @@ print(json.dumps(out))
 '''
 
 
+def _staged_copy(tmp: Path) -> Path:
+    """A pristine copy of the tree, built from what git tracks.
+
+    ⚠️ Building in place is not an option here: setuptools writes ``build/``
+    into the source tree, ``.gitignore`` hides it from ``git status``, and the
+    next test run then counts a stale duplicate of every module alongside the
+    original. This repository's own ``scripts/lane_check.py`` refuses a tree in
+    that state — a gate this file tripped the first time it ran, which is the
+    honest evidence that a build must not happen where measurements do.
+
+    Copying what git tracks (rather than the working tree) also means the wheel
+    is built from the committed shape, which is the shape a consumer receives.
+    """
+    staged = tmp / 'src'
+    staged.mkdir()
+    listed = subprocess.run(
+        ['git', 'ls-files', '-z'], cwd=str(_REPO_ROOT),
+        check=True, capture_output=True, text=True,
+    ).stdout.split('\0')
+    tracked = [name for name in listed if name]
+    if not tracked:
+        raise AssertionError('git listed no tracked files — nothing to build')
+    for name in tracked:
+        source = _REPO_ROOT / name
+        if not source.is_file():
+            continue
+        target = staged / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    return staged
+
+
 def _build_and_probe(tmp: Path) -> dict:
     wheels = tmp / 'wheels'
     subprocess.run(
         [sys.executable, '-m', 'pip', 'wheel', '--no-deps', '--no-cache-dir',
-         '-w', str(wheels), str(_REPO_ROOT)],
+         '-w', str(wheels), str(_staged_copy(tmp))],
         check=True, capture_output=True,
     )
     built = sorted(wheels.glob('*.whl'))
@@ -80,9 +113,21 @@ def _build_and_probe(tmp: Path) -> dict:
     )
     # Run from a directory that is not the repository, so a checkout further up
     # cannot answer for the installed lane and quietly turn this green.
+    # ⚠️ Scrub the ambient import path. Run alone this file passed; run inside
+    #    the suite it failed, because an earlier test puts the repository on
+    #    ``PYTHONPATH`` and the probe inherited it — importing *the checkout*
+    #    while claiming to measure the installed lane. That is the same shape
+    #    the monorepo scrubs at collection time: a leaked environment variable
+    #    makes a green that belongs to another machine's state. The
+    #    ``site-packages`` assertion below is what caught it, which is the
+    #    reason a non-vacuity check earns its place.
+    env = {
+        key: value for key, value in os.environ.items()
+        if key not in ('PYTHONPATH', 'PYTHONHOME', 'PYTHONSTARTUP')
+    }
     probed = subprocess.run(
         [str(python), '-c', _PROBE, json.dumps(list(CONSUMER_REQUESTED))],
-        check=True, capture_output=True, text=True, cwd=str(tmp),
+        check=True, capture_output=True, text=True, cwd=str(tmp), env=env,
     )
     return json.loads(probed.stdout.strip().splitlines()[-1])
 
