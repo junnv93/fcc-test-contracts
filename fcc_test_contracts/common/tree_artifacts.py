@@ -23,10 +23,12 @@ Dependency-free by contract (stdlib only) so it stays importable from the
 from __future__ import annotations
 
 import json
+from importlib import resources as _resources
 from pathlib import Path
 
 __all__ = [
     'LAYOUT_RECORD_NAME',
+    'PACKAGE_LAYOUT_RECORD_NAME',
     'DependencyTreeUnavailable',
     'RelocationAmbiguity',
     'discover_tree_artifact',
@@ -46,6 +48,20 @@ __all__ = [
 #: read time, or teaching each caller the shape of one delivered tree) puts a
 #: second opinion next to the only one that actually happened.
 LAYOUT_RECORD_NAME = '.extraction-layout.json'
+
+#: The same payload, delivered *inside* the top-level package so a lane
+#: installed as a wheel can still say where its own artifacts went.
+#:
+#: ⚠️ Deliberately a different filename, and the difference is load-bearing.
+#: :func:`_tree_root` finds the box root by looking for
+#: :data:`LAYOUT_RECORD_NAME`; a copy under that name inside the package makes
+#: the *package directory* answer as the box root, after which every
+#: repository-relative join lands one level too deep — measured 2026-08-31 as
+#: four artifacts resolving to a doubled path, and, worse, as the refusal for
+#: genuinely absent paths silently disappearing. Two questions, two names: the
+#: box-root record says *where the box starts and what moved*; this one says
+#: only *what moved*, because in a wheel there is no box.
+PACKAGE_LAYOUT_RECORD_NAME = '.extraction-layout.package.json'
 
 
 def discover_tree_artifact(anchor_file: str | Path, *segments: str) -> Path:
@@ -202,15 +218,66 @@ def resolve_dependency_artifact(rel_path: str) -> Path:
     """
     root = _tree_root(Path(__file__).resolve())
     if root == root.parent:
+        packaged = _packaged_artifact(rel_path)
+        if packaged is not None:
+            return packaged
         raise DependencyTreeUnavailable(
             f'cannot resolve {rel_path!r} through the tree that delivered '
             f'{__name__}: this module resolves to {__file__!r}, which sits under '
             'neither a delivered box (no layout record above it) nor a repository '
             'checkout. A lane installed as a wheel carries its importable '
-            'packages, not the artifacts it ships at its box root — deliver the '
+            'packages, not the artifacts it ships at its box root, and no copy '
+            'of this path was delivered inside the package either — deliver the '
             'sibling as a tree on sys.path, or ship the artifact as package data.'
         )
     return resolve_repo_artifact(__file__, rel_path)
+
+
+def _packaged_artifact(rel_path: str) -> Path | None:
+    """Where ``rel_path`` landed *inside* this module's own package, if it did.
+
+    A wheel carries the importable package and nothing else. The box-root
+    layout record and the box-root ``artifacts/`` directory are both outside
+    it, so a lane installed as a requirement can answer nothing about its own
+    relocation — which is a true statement about a real delivery shape, and
+    was refusing consumers that the lane genuinely ships for.
+
+    The repair keeps the same authority: the packager writes its record into
+    the top-level package as well as the box root, so an installed lane reads
+    *the packager's own account* of where a file went rather than inferring
+    one from a naming convention. Only paths delivered inside the package are
+    answerable here — a path recorded as landing at the box root returns
+    ``None`` and the caller refuses, exactly as before, because a wheel really
+    does not contain it.
+
+    Resolved through :mod:`importlib.resources` rather than by walking up from
+    ``__file__``, for the reason the migration discovery SSOT gives: a frozen
+    or zipped distribution has no directory to walk.
+    """
+    package = __name__.split('.')[0]
+    try:
+        anchor = _resources.files(package)
+        record_text = anchor.joinpath(PACKAGE_LAYOUT_RECORD_NAME).read_text(encoding='utf-8')
+    except (ModuleNotFoundError, FileNotFoundError, OSError, TypeError):
+        return None
+    record = dict((json.loads(record_text).get('paths') or {}))
+    rel = str(rel_path).replace('\\', '/').strip('/')
+    delivered = record.get(rel, _delivered_directory(rel, record))
+    prefix = package + '/'
+    if not delivered.startswith(prefix):
+        # Delivered outside the importable package: a wheel does not carry it,
+        # and naming a path here would invent one.
+        return None
+    # ⚠️ ``anchor`` is a Traversable, and for a namespace package it is a
+    # ``MultiplexedPath`` whose ``str()`` is a repr, not a path — building a
+    # ``Path`` from it yields a location nothing is at, and every lookup then
+    # fails as *absent* rather than as *misresolved*. Derive the package
+    # directory from this module's own dotted name instead: the number of
+    # dots is how far ``__file__`` sits below its top-level package, which is
+    # a fact about this module rather than about any tree it ships in.
+    package_dir = Path(__file__).resolve().parents[__name__.count('.') - 1]
+    candidate = package_dir.joinpath(*delivered[len(prefix):].split('/'))
+    return candidate if candidate.exists() else None
 
 
 def _tree_root(here: Path) -> Path:

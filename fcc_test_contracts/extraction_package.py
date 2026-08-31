@@ -69,7 +69,7 @@ import shutil
 import subprocess
 import sys
 from fcc_test_contracts.common.tree_artifacts import (  # noqa: E402
-    LAYOUT_RECORD_NAME, resolve_repo_artifact,
+    LAYOUT_RECORD_NAME, PACKAGE_LAYOUT_RECORD_NAME, resolve_repo_artifact,
 )
 from fcc_test_contracts.common.extraction_lane_policy import (  # noqa: E402
     CONSUMED_BASIS_DELIVERY,
@@ -653,9 +653,39 @@ def _write_layout_record(
         'repository': repo_name,
         'paths': dict(sorted(paths.items())),
     }
-    (repo_root / LAYOUT_RECORD_NAME).write_text(
-        json.dumps(payload, indent=2, sort_keys=False) + '\n', encoding='utf-8',
-    )
+    rendered = json.dumps(payload, indent=2, sort_keys=False) + '\n'
+    (repo_root / LAYOUT_RECORD_NAME).write_text(rendered, encoding='utf-8')
+    # Second sink, same bytes, same writer: a wheel carries the importable
+    # package and nothing else, so a box-root record is invisible to a lane
+    # installed as a requirement — which is how `resolve_dependency_artifact`
+    # came to refuse 33 platform tests that were asking for artifacts the
+    # contracts lane really does ship. Writing the identical payload inside
+    # the top-level package is not a second opinion about the relocation; it
+    # is the same opinion delivered where a wheel can reach it.
+    for package_root in sorted(_top_level_packages(repo_root, paths)):
+        (package_root / PACKAGE_LAYOUT_RECORD_NAME).write_text(rendered, encoding='utf-8')
+
+
+def _top_level_packages(repo_root: Path, paths: dict[str, str]) -> set[Path]:
+    """Top-level directories this run delivered files into.
+
+    Derived from the record's own destinations rather than from a marker file
+    on disk. ``__init__.py`` was the obvious test and it is the wrong one
+    here: this lane's package is a PEP 420 namespace package and has no
+    ``__init__.py`` at all, so that predicate finds nothing, writes nothing,
+    and leaves every check downstream passing on a box that carries no record
+    where a wheel can see it. A search whose failure looks exactly like its
+    success is the defect class this repository names ``check-axis-blindness``.
+
+    A file delivered to the box root has no directory component and
+    contributes nothing, which is correct: there is no package there to reach.
+    """
+    roots: set[Path] = set()
+    for delivered in paths.values():
+        head, _, tail = str(delivered).replace('\\', '/').partition('/')
+        if tail and (repo_root / head).is_dir():
+            roots.add(repo_root / head)
+    return roots
 def _import_rewrite_map(manifest: dict, *, root: Path = PROJECT_ROOT) -> dict[str, str]:
     """Module **and package** renames declared by every lane, longest key first.
 
