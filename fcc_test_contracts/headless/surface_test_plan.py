@@ -680,6 +680,7 @@ class TestPlanDraftRowView:
             'tone': self.tone,
             'location': self.location,
             'packet': self.packet,
+            'generated_from_capability': self.generated_from_capability,
             'derived_kind': self.derived_kind,
         }
 
@@ -760,6 +761,10 @@ class PublishedTestPlanRowView:
     #: one whose Modulation column is empty — the plan still measures, it measures
     #: something else, and nothing reports an error (plan-delivery, 2026-09-02).
     packet: Optional[str] = None
+    #: Generation provenance for a GENERATED row. Carried for the same reason as
+    #: ``packet``: this view is the only wire form of a published row, so a field
+    #: it omits is a field a consumer that reconstructs the plan cannot have.
+    generated_from_capability: Optional[str] = None
     derived_kind: Optional[str] = None
 
     @classmethod
@@ -778,6 +783,7 @@ class PublishedTestPlanRowView:
             tone=getattr(row, 'tone', None),
             location=getattr(row, 'location', None),
             packet=getattr(row, 'packet', None),
+            generated_from_capability=getattr(row, 'generated_from_capability', None),
             derived_kind=_enum_value(derived) if derived is not None else None,
         )
 
@@ -1376,6 +1382,7 @@ SCHEMAS = {
             # from it, so a consumer that reconstructs a plan without it measures
             # a different row set and reports no error (plan-delivery, 2026-09-02).
             'packet': {'type': 'string', 'nullable': True},
+            'generated_from_capability': {'type': 'string', 'nullable': True},
             'derived_kind': {
                 'type': 'string',
                 'enum': ['afh_occupancy', 'antenna_sum'],

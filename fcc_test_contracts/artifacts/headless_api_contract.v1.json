@@ -1687,6 +1687,10 @@
           "nullable": true,
           "type": "string"
         },
+        "generated_from_capability": {
+          "nullable": true,
+          "type": "string"
+        },
         "generation_key": {
           "nullable": true,
           "type": "string"
