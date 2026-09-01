@@ -22,7 +22,7 @@ name = "fcc-test-contracts"
 # version = 이 레인이 이미 소유한 npm 배포물 packages/api-artifacts/package.json
 # 과 상등. src/_version.py 는 fcc-unlicensed-headless 소유(GUI 앱 버전)라
 # 두 레인의 배포를 GUI 릴리스에 묶게 되므로 쓰지 않는다.
-version = "0.1.7"
+version = "0.1.8"
 description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
 # requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
 # (`FROM python:3.11-slim`)에서 파생.
@@ -59,6 +59,17 @@ include = ["fcc_test_contracts*"]
 # 근거이므로 명시한다 — 상자에 `__init__.py` 를 새로 넣는 것은 트리 모양 변경이고
 # 레이아웃 기록·소유권·entry_point_roots 를 함께 건드린다.
 namespaces = true
+
+[tool.setuptools.package-data]
+# ⚠️ 휠은 **임포트 가능한 패키지만** 싣는다. 이 레인이 배포하는 계약 아티팩트가
+#    상자 루트 `artifacts/` 에 있던 동안, 이 레인을 **요구사항으로 설치한** 소비자는
+#    그 파일들에 원리적으로 닿을 수 없었다 — 2026-08-31 실측으로 플랫폼 CI 실패
+#    42건 중 33건이 정확히 그 거부(`DependencyTreeUnavailable`)였다. 그래서
+#    아티팩트의 착지지를 패키지 **안**으로 옮기고(매니페스트가 SSOT) 여기서 싣는다.
+#    `.extraction-layout.json` 도 함께 실어야 한다 — 그 기록이 없으면 설치된 레인은
+#    자기가 무엇을 어디로 옮겼는지 말할 수 없고, 소비자는 규약으로 추측하게 된다.
+"fcc_test_contracts" = [".extraction-layout.package.json"]
+"fcc_test_contracts.artifacts" = ["*.json", "*.md"]
 
 # ⚠️ 사본이다 — TOML 에는 include 가 없다. 그래서 루트 pyproject.toml 의
 #    testpaths/markers/addopts 와 **상등 파리티 게이트**를 함께 세운다
