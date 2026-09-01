@@ -679,8 +679,6 @@ class TestPlanDraftRowView:
             'mode_family': self.mode_family,
             'tone': self.tone,
             'location': self.location,
-            'packet': self.packet,
-            'generated_from_capability': self.generated_from_capability,
             'derived_kind': self.derived_kind,
         }
 
@@ -799,6 +797,8 @@ class PublishedTestPlanRowView:
             'mode_family': self.mode_family,
             'tone': self.tone,
             'location': self.location,
+            'packet': self.packet,
+            'generated_from_capability': self.generated_from_capability,
             'derived_kind': self.derived_kind,
         }
 
