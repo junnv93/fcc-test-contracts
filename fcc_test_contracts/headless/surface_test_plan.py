@@ -72,6 +72,17 @@ ROUTES = {
     'list_published_test_plans': (
         'GET', '/headless/projects/{project_id}/test-plan/publications',
     ),
+    # Chamber-facing published-plan read (plan-delivery, 2026-09-02). The path is
+    # deliberately NOT nested under {project_id}: the caller is a chamber node whose
+    # only handle is the opaque server-generated plan_id, and the read boundary it
+    # implements (``PublishedTestPlanSource.get_published_plan(plan_id)``) takes no
+    # project. Nesting it would force a project into that signature everywhere the
+    # boundary is consumed (measurement seeding, report provenance, the GUI path)
+    # for a scope the authorizer does not use — this operation is gated by a
+    # machine principal, not by project membership.
+    'get_published_test_plan': (
+        'GET', '/headless/test-plan/publications/{plan_id}',
+    ),
     # Test-plan Excel import (Phase 4 L3, 2026-06-22). multipart/form-data upload
     # (distinct ``imports`` path segment from ``drafts``/``publications``). POST
     # creates an IMPORTED draft from the workbook + records an import audit row.
@@ -668,6 +679,7 @@ class TestPlanDraftRowView:
             'mode_family': self.mode_family,
             'tone': self.tone,
             'location': self.location,
+            'packet': self.packet,
             'derived_kind': self.derived_kind,
         }
 
@@ -741,6 +753,13 @@ class PublishedTestPlanRowView:
     mode_family: Optional[str] = None
     tone: Optional[str] = None
     location: Optional[str] = None
+    #: Display packet token (``255pkt``/``37pkt`` for BLE, ``DH1``/``DH3``/``DH5``
+    #: for BT). ⚠️ **Not decorative.** ``render_test_plan_display_row`` reads it to
+    #: produce the Test Plan *Modulation* cell, and that cell is part of the
+    #: measurement match key. A view that drops it round-trips a published plan into
+    #: one whose Modulation column is empty — the plan still measures, it measures
+    #: something else, and nothing reports an error (plan-delivery, 2026-09-02).
+    packet: Optional[str] = None
     derived_kind: Optional[str] = None
 
     @classmethod
@@ -758,6 +777,7 @@ class PublishedTestPlanRowView:
             mode_family=getattr(row, 'mode_family', None),
             tone=getattr(row, 'tone', None),
             location=getattr(row, 'location', None),
+            packet=getattr(row, 'packet', None),
             derived_kind=_enum_value(derived) if derived is not None else None,
         )
 
@@ -1197,6 +1217,14 @@ PERMISSIONS = {
     # plans already published in a project (replaces the frontend browser-local
     # recency cache as SSOT). read permission (shares test_plan:read).
     'list_published_test_plans': 'test_plan:read',
+    # Chamber-facing published-plan read (plan-delivery, 2026-09-02). The consumer
+    # is a chamber node fetching the plan central told it to measure, so the gate is
+    # the node-scoped machine token — the SAME token that already lets that node pull
+    # its room's reference values and push its results. ``test_plan:read`` is wrong
+    # here in both directions: a chamber service account holds no project membership
+    # (the project-grant resolver would fail closed), and handing a machine a human
+    # authoring-surface token widens it beyond the one read it needs.
+    'get_published_test_plan': 'platform:chamber',
     # Test-plan Excel import (Phase 4 L3, 2026-06-22). Upload a workbook → parse →
     # capability-map → IMPORTED draft. author = create draft (write surface) so it
     # shares the existing test_plan:author token (no RBAC grant-matrix change).
@@ -1344,6 +1372,10 @@ SCHEMAS = {
             'mode_family': {'type': 'string', 'nullable': True},
             'tone': {'type': 'string', 'nullable': True},
             'location': {'type': 'string', 'nullable': True},
+            # Display packet token — the Test Plan *Modulation* cell is rendered
+            # from it, so a consumer that reconstructs a plan without it measures
+            # a different row set and reports no error (plan-delivery, 2026-09-02).
+            'packet': {'type': 'string', 'nullable': True},
             'derived_kind': {
                 'type': 'string',
                 'enum': ['afh_occupancy', 'antenna_sum'],
@@ -1715,6 +1747,18 @@ OPERATIONS = {
                 'schema': {'type': 'integer', 'minimum': 1},
             },
         ],
+    ),
+    'get_published_test_plan': _operation(
+        request=None,
+        response='PublishedTestPlanView',
+        permission=PERMISSIONS['get_published_test_plan'],
+        error_responses={
+            '404': (
+                'No publication with that plan_id. The identifier is opaque and '
+                'server-generated, so an unknown one is a genuine not-found — not a '
+                'scope refusal.'
+            ),
+        },
     ),
     # Test-plan Excel import (Phase 4 L3, 2026-06-22). multipart/form-data upload
     # (``request`` is None — the body is a file, not a JSON schema). Returns the

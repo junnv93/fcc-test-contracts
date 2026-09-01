@@ -33,7 +33,7 @@
       "binary_media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "binary_response": true,
       "error_responses": {
-        "422": "The session has no measurement rows \u2014 there is nothing to render into a result workbook (SESSION_RESULTS_EMPTY)."
+        "422": "The session has no measurement rows — there is nothing to render into a result workbook (SESSION_RESULTS_EMPTY)."
       },
       "permission": "headless:read",
       "request": null,
@@ -44,7 +44,7 @@
       "binary_response": true,
       "error_responses": {
         "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
-        "422": "Draft has no rows \u2014 an empty plan has nothing to export."
+        "422": "Draft has no rows — an empty plan has nothing to export."
       },
       "permission": "test_plan:read",
       "request": null,
@@ -54,6 +54,14 @@
       "permission": "headless:read",
       "request": null,
       "response": "MeasurementJobSnapshot"
+    },
+    "get_published_test_plan": {
+      "error_responses": {
+        "404": "No publication with that plan_id. The identifier is opaque and server-generated, so an unknown one is a genuine not-found — not a scope refusal."
+      },
+      "permission": "platform:chamber",
+      "request": null,
+      "response": "PublishedTestPlanView"
     },
     "get_report_preflight": {
       "permission": "report_automation:read",
@@ -107,7 +115,7 @@
     },
     "import_test_plan": {
       "error_responses": {
-        "422": "Workbook unprocessable \u2014 the parsed rows fail the draft write gate (out-of-scope sub_family / capability taxonomy violation)."
+        "422": "Workbook unprocessable — the parsed rows fail the draft write gate (out-of-scope sub_family / capability taxonomy violation)."
       },
       "multipart_request": true,
       "permission": "test_plan:author",
@@ -240,8 +248,8 @@
     },
     "preview_test_plan_generation": {
       "error_responses": {
-        "409": "Conflict \u2014 the production matrix cannot produce rows for this request, the preview is stale, or a staged WLAN request has missing, stale, or empty production input.",
-        "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
+        "409": "Conflict — the production matrix cannot produce rows for this request, the preview is stale, or a staged WLAN request has missing, stale, or empty production input.",
+        "503": "Reference data is not provisioned — a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
       },
       "permission": "test_plan:read",
       "request": "TestPlanGenerationRequest",
@@ -262,8 +270,8 @@
       "error_responses": {
         "403": "AuthZ denied (missing test_plan:author).",
         "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
-        "409": "Publish conflict \u2014 the draft is not DRAFT (e.g. archived), a concurrent transition won the race, or materialize found a duplicate measurement condition (ADR-0005 Decision A reject).",
-        "422": "Draft is unpublishable (no rows \u2014 an empty plan has no meaning)."
+        "409": "Publish conflict — the draft is not DRAFT (e.g. archived), a concurrent transition won the race, or materialize found a duplicate measurement condition (ADR-0005 Decision A reject).",
+        "422": "Draft is unpublishable (no rows — an empty plan has no meaning)."
       },
       "permission": "test_plan:author",
       "query_params": [
@@ -287,7 +295,7 @@
     "replace_test_plan_draft_rows": {
       "error_responses": {
         "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
-        "409": "Row replace conflict \u2014 the draft is not DRAFT (archived/published, terminal row freeze) or a DB integrity constraint was violated."
+        "409": "Row replace conflict — the draft is not DRAFT (archived/published, terminal row freeze) or a DB integrity constraint was violated."
       },
       "permission": "test_plan:author",
       "request": "ReplaceTestPlanDraftRowsRequest",
@@ -306,8 +314,8 @@
     "stream_report_output_download": {
       "binary_response": true,
       "error_responses": {
-        "409": "Integrity conflict \u2014 the granted file bytes no longer match the signed sha256 (changed/corrupt on disk; request a fresh grant).",
-        "410": "Gone \u2014 the download token/grant has expired (access window elapsed; request a fresh grant)."
+        "409": "Integrity conflict — the granted file bytes no longer match the signed sha256 (changed/corrupt on disk; request a fresh grant).",
+        "410": "Gone — the download token/grant has expired (access window elapsed; request a fresh grant)."
       },
       "permission": "public",
       "query_params": [
@@ -334,8 +342,8 @@
     },
     "submit_test_plan_generation": {
       "error_responses": {
-        "409": "Conflict \u2014 the preview is stale, the idempotency key was reused with a different request, or a staged WLAN request has missing, stale, or empty production input.",
-        "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
+        "409": "Conflict — the preview is stale, the idempotency key was reused with a different request, or a staged WLAN request has missing, stale, or empty production input.",
+        "503": "Reference data is not provisioned — a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
       },
       "header_params": [
         {
@@ -356,7 +364,7 @@
     },
     "validate_test_plan_draft": {
       "error_responses": {
-        "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
+        "503": "Reference data is not provisioned — a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
       },
       "permission": "test_plan:read",
       "request": null,
@@ -400,6 +408,10 @@
     "get_measurement_job": {
       "method": "GET",
       "path": "/headless/jobs/{job_id}"
+    },
+    "get_published_test_plan": {
+      "method": "GET",
+      "path": "/headless/test-plan/publications/{plan_id}"
     },
     "get_report_preflight": {
       "method": "GET",
@@ -1688,6 +1700,10 @@
           "type": "string"
         },
         "origin": {
+          "type": "string"
+        },
+        "packet": {
+          "nullable": true,
           "type": "string"
         },
         "scope_revision": {
