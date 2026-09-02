@@ -60,6 +60,10 @@ HEADLESS_API_PERMISSION_DESCRIPTIONS: dict[str, str] = {
     'report_automation:control': 'Submit/cancel report-automation requests.',
     'test_plan:read': 'Read/validate test-plan drafts (non-mutating).',
     'test_plan:author': 'Create drafts, add/remove draft rows, import a test-plan from an Excel workbook (draft authoring write surface).',
+    # Node-scoped machine token, mirrored from the platform surface where it was
+    # declared. It is NOT a project-membership grant and never appears in
+    # rbac_role_grants — the same exclusion the 'public' sentinel carries.
+    'platform:chamber': 'Chamber node machine token — read the published plan this chamber was told to measure.',
 }
 
 
@@ -79,4 +83,7 @@ HEADLESS_API_PATH_PARAMS: dict[str, dict] = {
     'draft_id': {'type': 'string', 'minLength': 1},
     'draft_row_id': {'type': 'integer', 'minimum': 1},
     'generation_job_id': {'type': 'string', 'minLength': 1},
+    # Published-plan identity (plan-delivery, 2026-09-02) — the opaque
+    # server-generated publication id (``test_plan_publications.plan_id``).
+    'plan_id': {'type': 'string', 'minLength': 1},
 }

@@ -357,7 +357,13 @@ class TestTheContractPackageDoesNotGrow(unittest.TestCase):
     #: Measured 2026-08-29. Lower this when a module shrinks; raising it is the
     #: change this test exists to make someone argue for.
     LINE_BUDGET = {
-        'surface_test_plan.py': 1837,
+        # 2026-09-02 상향 1837 → 1889 (plan-delivery). 이 테스트가 "누군가 근거를
+        # 대게 하려고" 존재하므로 근거를 여기 남긴다: 챔버가 자기가 잴 계획을 읽는
+        # operation 하나(route/permission/operation)와, 그 왕복이 조용히 잃던 필드
+        # 둘(`packet` — Test Plan Modulation 셀의 출처 — 과 `generated_from_capability`)을 더했다. 분할이 아니라
+        # **한 표면 안의 한 operation** 이므로 이 모듈이 커지는 것이 옳다 —
+        # 게시 계획 계약은 이미 여기 전부 있고, 소비자가 하나 늘었을 뿐이다.
+        'surface_test_plan.py': 1889,
         'surface_reports.py': 426,
         # ⚠️ 2026-08-31 **재정정** — 338 → 351 은 오기 수정이 아니라 **정당한 상향**이고,
         #    그 사실이 한 번 잘못 적혔다. 지우지 않고 왜 틀렸는지를 남긴다.

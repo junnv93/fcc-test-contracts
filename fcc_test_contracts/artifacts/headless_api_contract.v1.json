@@ -55,6 +55,14 @@
       "request": null,
       "response": "MeasurementJobSnapshot"
     },
+    "get_published_test_plan": {
+      "error_responses": {
+        "404": "No publication with that plan_id. The identifier is opaque and server-generated, so an unknown one is a genuine not-found \u2014 not a scope refusal."
+      },
+      "permission": "platform:chamber",
+      "request": null,
+      "response": "PublishedTestPlanView"
+    },
     "get_report_preflight": {
       "permission": "report_automation:read",
       "query_params": [
@@ -400,6 +408,10 @@
     "get_measurement_job": {
       "method": "GET",
       "path": "/headless/jobs/{job_id}"
+    },
+    "get_published_test_plan": {
+      "method": "GET",
+      "path": "/headless/test-plan/publications/{plan_id}"
     },
     "get_report_preflight": {
       "method": "GET",
@@ -1675,6 +1687,10 @@
           "nullable": true,
           "type": "string"
         },
+        "generated_from_capability": {
+          "nullable": true,
+          "type": "string"
+        },
         "generation_key": {
           "nullable": true,
           "type": "string"
@@ -1688,6 +1704,10 @@
           "type": "string"
         },
         "origin": {
+          "type": "string"
+        },
+        "packet": {
+          "nullable": true,
           "type": "string"
         },
         "scope_revision": {
