@@ -26,13 +26,19 @@ name = "fcc-test-kernel"
 # ⚠️ **버전 SSOT 를 발명하지 않는다.** 이 배포판은 자기 릴리스 축을 갖고, 그 축은
 # 이관이 진행되며 폐포가 줄어드는 것과 함께 움직인다.
 #   0.1.0  1단계 — 로깅/알림 클러스터 10파일 (공유 폐포 64 → 54)
-#   0.2.0  2단계 — 중앙 계약 표면 클러스터 31파일 (54 → 23)
+#   0.2.0  2단계 — 중앙 계약 표면 클러스터 31파일 (54 → 24)
+#   0.3.0  3단계 — 남은 공유 폐포 전부 24파일 (24 → 0)
+#          3a infrastructure 2 + 3b domain 22. 두 클러스터가 각각 이미 닫혀
+#          있었다(유출 0) — 서로 독립이라 한 웨이브로 갈 수 있었다.
+#          ⚠️ 이 배포로 소비 레인의 공유 폐포가 **0** 이 된다. 그 순간부터
+#          「공유 폐포 0」과 「측정이 아무것도 못 찾았다」가 그 게이트의 축에서
+#          같은 값이 되므로, 소비 레인이 그 자리에 비-공허성 팔을 세운다.
 #          application 20(central_contract 19 + session/api_contracts) + domain 11.
 #          ⚠️ 이 클러스터는 provider 어휘 4를 진다. **그것이 이 배포판이 계약
 #          레인이 아닌 이유다** — ADR-0010 D-8 은 계약 레인의 provider 어휘를
 #          금지하지만 커널은 접두사로 충돌만 없애므로 어휘를 묻지 않는다
 #          (fcc-test-platform ADR-0001 §그리고 9개를 분류할 필요가 없다).
-version = "0.2.0"
+version = "0.3.0"
 description = "Prefixed shared kernel for the FCC lanes — logging and notification primitives that both the central platform and the provider runtime reach."
 # requires-python = 두 소비 레인의 런타임 베이스(`python:3.11-slim`)에서 파생.
 requires-python = ">=3.11"
