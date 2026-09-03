@@ -24,9 +24,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fcc-test-kernel"
 # ⚠️ **버전 SSOT 를 발명하지 않는다.** 이 배포판은 자기 릴리스 축을 갖고, 그 축은
-# 이관이 진행되며 폐포가 줄어드는 것과 함께 움직인다. 0.1.0 은 1단계(로깅/알림
-# 클러스터 10파일)의 첫 배포다.
-version = "0.1.0"
+# 이관이 진행되며 폐포가 줄어드는 것과 함께 움직인다.
+#   0.1.0  1단계 — 로깅/알림 클러스터 10파일 (공유 폐포 64 → 54)
+#   0.2.0  2단계 — 중앙 계약 표면 클러스터 31파일 (54 → 23)
+#          application 20(central_contract 19 + session/api_contracts) + domain 11.
+#          ⚠️ 이 클러스터는 provider 어휘 4를 진다. **그것이 이 배포판이 계약
+#          레인이 아닌 이유다** — ADR-0010 D-8 은 계약 레인의 provider 어휘를
+#          금지하지만 커널은 접두사로 충돌만 없애므로 어휘를 묻지 않는다
+#          (fcc-test-platform ADR-0001 §그리고 9개를 분류할 필요가 없다).
+version = "0.2.0"
 description = "Prefixed shared kernel for the FCC lanes — logging and notification primitives that both the central platform and the provider runtime reach."
 # requires-python = 두 소비 레인의 런타임 베이스(`python:3.11-slim`)에서 파생.
 requires-python = ">=3.11"
@@ -47,3 +53,16 @@ include = ["fcc_test_kernel*"]
 # `notification_types`)을 import 하므로, 그것을 함께 실으면 폐포가 조용히 커진다.
 # 실측: 그 `__init__` 들 중 이 클러스터를 부르는 것은 0건이라 빼도 아무것도 잃지 않는다.
 namespaces = true
+
+[tool.setuptools.package-data]
+# ⚠️ **패키지 데이터는 폐포가 볼 수 없는 의존이다** (실측 2026-09-03).
+# `domain/models/reference_catalog.py` 는 import 시점에
+# `importlib.resources.files(__package__).joinpath('decision_catalogue.json')` 로
+# 이 파일을 읽는다. 폐포 게이트는 **import 축**이라 그 간선을 구조적으로 못 본다 —
+# 2단계 이관에서 코드 31파일만 옮기자 15개 모듈이 `ReferenceCatalogError:
+# decision catalogue resource is unavailable` 로 죽었다.
+#
+# 축을 하나 더 만드는 대신 **더 강한 오라클**을 세웠다:
+# `tests/test_kernel_imports_standalone.py` 가 커널의 모든 모듈을 실제로 import 한다.
+# 그 검사는 자원 누락·접두사 오류·패키징 누락을 한 번에 붉힌다.
+"fcc_test_kernel.domain.models" = ["*.json"]
