@@ -1,0 +1,49 @@
+# 설치 선언 — fcc-test-kernel 배포판
+#
+# 이 저장소가 내는 **세 번째 배포물**이다. 루트 `pyproject.toml` 이 Python
+# `fcc-test-contracts` 를, `packages/api-artifacts/package.json` 이 npm
+# `@fcc/api-artifacts` 를 낸다. 「한 저장소, 여러 배포판」은 이 계열의 확립된
+# 패턴이고, 이 배포판이 새 저장소를 필요로 하지 않는 이유가 그것이다.
+#
+# ⚠️ **이것은 계약 레인이 아니다.** `fcc-test-contracts` 는 provider 어휘를 받지
+# 않는다(ADR-0010 D-8). 공유 커널 폐포 53개 중 9개가 코드에 provider 어휘를 지므로
+# 그 레인으로 승격할 수 없다. 그래서 **별도 배포판 · 고유 접두사**다 —
+# `fcc-test-platform:docs/architecture/adr/0001-shared-kernel-prefix-and-name-ownership.md`.
+#
+# 왜 접두사인가: 두 레인이 최상위 이름 넷(`domain`·`application`·`infrastructure`·
+# `logger_config`)을 동시에 주장하고, Python 은 그것을 `sys.path` 순서로 조용히
+# 고른다. 공식 지침(packaging.python.org, *Packaging namespace packages*)이 허용하는
+# 둘 중 PEP 420 namespace 는 **성립하지 않는다** — 그 요건이 *"모든 배포판이
+# `__init__.py` 를 생략"* 인데 두 레인이 양쪽 다 갖고 있다. 남는 것이 「고유 접두사」다.
+
+[build-system]
+# 루트 `pyproject.toml` 과 같은 하한. `[tool.setuptools]` 하위 테이블을 함께 쓴다.
+requires = ["setuptools>=62.5"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fcc-test-kernel"
+# ⚠️ **버전 SSOT 를 발명하지 않는다.** 이 배포판은 자기 릴리스 축을 갖고, 그 축은
+# 이관이 진행되며 폐포가 줄어드는 것과 함께 움직인다. 0.1.0 은 1단계(로깅/알림
+# 클러스터 10파일)의 첫 배포다.
+version = "0.1.0"
+description = "Prefixed shared kernel for the FCC lanes — logging and notification primitives that both the central platform and the provider runtime reach."
+# requires-python = 두 소비 레인의 런타임 베이스(`python:3.11-slim`)에서 파생.
+requires-python = ">=3.11"
+# 실측 2026-09-03: 이 클러스터 10파일의 클러스터 밖 의존은 `fcc_test_contracts`
+# 하나뿐이다(서드파티 0). 그 하나를 여기 선언한다 — 소비 레인이 이미 그것을
+# 설치하지만, 이 배포판이 그것 없이 import 되지 않으므로 선언이 사실이어야 한다.
+dependencies = [
+    "fcc-test-contracts",
+]
+
+[tool.setuptools.packages.find]
+# 최상위 import 이름 **하나**. 그것이 이 배포판이 존재하는 이유다 —
+# 두 레인이 주장하던 네 이름 대신 아무도 다투지 않는 이름 하나를 쓴다.
+include = ["fcc_test_kernel*"]
+# PEP 420 암묵 네임스페이스. 계약 레인(`fcc_test_contracts`)과 같은 규약이고,
+# 원본 트리의 `__init__.py` 를 **가져오지 않은** 것이 여기 걸린다:
+# `domain/models/__init__.py` 는 이 클러스터 밖 모듈(`test_plan` ·
+# `notification_types`)을 import 하므로, 그것을 함께 실으면 폐포가 조용히 커진다.
+# 실측: 그 `__init__` 들 중 이 클러스터를 부르는 것은 0건이라 빼도 아무것도 잃지 않는다.
+namespaces = true
