@@ -258,7 +258,7 @@ class TestTracestateMutateLatencyBudget(unittest.TestCase):
 
     def test_mutate_capacity_path_within_budget(self):
         sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
-        from benchmark_harness import measure_latency_us
+        from fcc_test_contracts.common.benchmark_harness import measure_latency_us
         from fcc_test_contracts.common.correlation import mutate_tracestate
 
         capacity_header = (
@@ -283,7 +283,7 @@ class TestTracestateMutateLatencyBudget(unittest.TestCase):
 
     def test_mutate_byte_overflow_path_within_budget(self):
         sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
-        from benchmark_harness import measure_latency_us
+        from fcc_test_contracts.common.benchmark_harness import measure_latency_us
         from fcc_test_contracts.common.correlation import mutate_tracestate
 
         # 32 entries × 14 byte = 479 byte (under 512); adding 80-byte entry

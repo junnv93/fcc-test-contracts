@@ -34,11 +34,16 @@ from pathlib import Path
 
 import pytest
 
+from tests._moved_module_source import moved_module_source
+
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / 'scripts'
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from benchmark_harness import (  # noqa: E402
+# ⚠️ **2026-09-03 — `scripts/` 에서 배포되는 패키지로 올렸다.**
+# `scripts/` 는 이 상자가 배포하지 않으므로 그 자리의 모듈은 소비 레인이
+# 쓸 수 없었다. 그래서 import 가 배포 이름을 지난다.
+from fcc_test_contracts.common.benchmark_harness import (  # noqa: E402
     DEFAULT_MAX_TRIALS,
     DEFAULT_TRIALS,
     LatencyBudget,
@@ -49,7 +54,10 @@ from benchmark_harness import (  # noqa: E402
 
 pytestmark = pytest.mark.invariant
 
-_HARNESS = SCRIPTS_DIR / 'benchmark_harness.py'
+# ⚠️ **경로가 아니라 모듈에게 묻는다** (2026-09-03). 이 모듈이 `scripts/` 에서
+# 배포되는 패키지로 옮겨졌고, 경로를 적은 검사는 *트리*에 대해 단언하지
+# 검사하려는 *코드*에 대해 단언하지 않는다 — `tests/_moved_module_source.py`.
+_HARNESS = moved_module_source('fcc_test_contracts.common.benchmark_harness')
 
 
 def _summary(p95: float, *, p99: float | None = None) -> dict[str, float]:

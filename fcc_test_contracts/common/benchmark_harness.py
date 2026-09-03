@@ -4,6 +4,31 @@ The bench scripts measure small Python hot paths where raw p95 numbers are
 sensitive to GC and scheduler noise. This module keeps the measurement policy
 in one place: warm up first, disable GC only during the measured loop, summarize
 with stable percentile math, and expose one assertion helper for tests.
+
+⚠️ **2026-09-03 — ``scripts/`` 에서 여기로 올렸다. 이유는 「정리」가 아니다.**
+
+이 파일은 그날까지 **두 벌**이었다 (계약 레인 ``scripts/`` 와 provider 저장소
+``scripts/``). 실측: 두 사본이 **byte-identical**
+(``cd729aa3ea8476f9709c6a03646692ea``) — 아직 안 갈라졌다. 갈라지지 않은 것은
+**시간이 안 지났기 때문이지 구조 때문이 아니다.**
+
+그리고 이 레인의 ``scripts/`` 는 **배포되지 않는다**
+(``include = ["fcc_test_contracts*"]``, ``__init__.py`` 도 의도적으로 없다).
+그래서 그 사본은 **아무도 소비할 수 없는 사본**이었다 — 「공유」가 아니라 「복사」다.
+
+세 번째 소비자가 그 사실을 드러냈다: ``fcc-test-platform`` 의
+``tests/test_project_result_selection_performance.py`` 가 이 모듈을 필요로 하는데
+그 레인에는 없어서, 배송 이래 **수집 오류**로 선언된 부채였다.
+
+**왜 커널이 아니라 계약 레인인가** (provider 세션과 합의):
+``fcc_test_kernel`` 은 도메인 폐포이고 이것은 **측정 도구**다. 그리고 이 레인은
+이미 세 레인이 소비한다. 의존은 표준 라이브러리뿐이라 「의존성 없음」 규칙에
+정확히 맞는다.
+
+⚠️ **여기가 벤치 퍼센타일 SSOT 다.** provider 저장소의 ``CLAUDE.md`` 가 그 SSOT 를
+이 모듈에 걸어 두었다(``percentile()`` nearest-rank · ``measure_latency_us_robust()`` ·
+ad-hoc ``statistics.*`` 0건 AST 가드). **사본에 SSOT 를 거는 것은 SSOT 가 아니다** —
+그것이 이관의 결정적 근거다.
 """
 from __future__ import annotations
 
