@@ -36,7 +36,10 @@ SCRIPTS_DIR = PROJECT_ROOT / 'scripts'
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from benchmark_harness import (  # noqa: E402  (sys.path set above)
+# ⚠️ **2026-09-03 — `scripts/` 에서 배포되는 패키지로 올렸다.**
+# `scripts/` 는 이 상자가 배포하지 않으므로 그 자리의 모듈은 소비 레인이
+# 쓸 수 없었다. 그래서 import 가 배포 이름을 지난다.
+from fcc_test_contracts.common.benchmark_harness import (  # noqa: E402
     DEFAULT_TRIALS,
     LatencyBudget,
     _aggregate_min_across_trials,
