@@ -41,6 +41,9 @@ PLATFORM_API_PATH_PARAMS: dict[str, dict] = {
     # project-scoped URL, and the list response already hands the client a
     # server-owned id.
     'snapshot_id': {'type': 'string', 'format': 'uuid', 'minLength': 1},
+    # ADR-0002 시료 custody — a central sample_custody_events.id (uuid). 삭제만
+    # 이 id 를 받는다: 정정 수단이 수정이 아니라 삭제이기 때문이다.
+    'event_id': {'type': 'string', 'format': 'uuid', 'minLength': 1},
 }
 
 

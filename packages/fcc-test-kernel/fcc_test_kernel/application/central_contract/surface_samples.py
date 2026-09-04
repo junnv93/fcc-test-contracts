@@ -16,6 +16,29 @@ from fcc_test_kernel.application.central_contract.api_vocabulary import (
     _SAMPLE_STATUS_VALUES,
     _SAMPLE_TEXT_PROPERTIES,
 )
+from fcc_test_kernel.domain.models.sample_inventory import (
+    CUSTODY_EVENT_FIELDS,
+    SampleCustodyEventType,
+)
+
+# PM 축 반입/반출 사건의 필드 어휘 (ADR-0002). `api_vocabulary` 가 아니라 여기 사는
+# 이유는 이 모듈의 경계 규칙 그대로다 — **표 종류가 아니라 operation 표면**이 경계이고,
+# custody 는 시료 표면 하나만 쓴다. 위의 셋처럼 도메인 튜플에서 파생하므로 도메인과
+# 계약이 갈라질 수 없다.
+#
+# event_type 만 enum 으로 좁힌다: 닫힌 어휘이고 보유 상태 계산의 입력이라, 자유 문자열을
+# 허용하면 계산이 오류 없이 조용히 틀린다.
+_SAMPLE_CUSTODY_EVENT_TYPE_VALUES = [
+    event_type.value for event_type in SampleCustodyEventType
+]
+_SAMPLE_CUSTODY_PROPERTIES = {
+    field: (
+        {'type': 'string', 'enum': _SAMPLE_CUSTODY_EVENT_TYPE_VALUES}
+        if field == 'event_type'
+        else {'type': 'string', 'nullable': True}
+    )
+    for field in CUSTODY_EVENT_FIELDS
+}
 
 #: 이 모듈이 소유하는 route path prefix. 분할은 **선언이 아니라 판정 대상**이다 —
 #: ``tests/test_central_contract_decomposition_axis.py`` 가 prefix 집합이 쌍마다
@@ -45,6 +68,23 @@ ROUTES: dict[str, tuple[str, str]] = {
     'list_sample_history': (
         'GET', '/platform/projects/{project_id}/samples/{sample_id}/history',
     ),
+    # 시험 실무자 축의 1:N 입고 이력. 시료 상세는 `latest_intake` 한 건만 실어 왔고,
+    # 「반출됐다 반입되면 다시 기록」한 과거 행들을 읽을 창이 없었다 (ADR-0002).
+    'list_sample_intakes': (
+        'GET', '/platform/projects/{project_id}/samples/{sample_id}/intakes',
+    ),
+    # PM 축의 반입/반출 사건 (ADR-0002). 정정 수단은 PATCH 가 아니라 DELETE 다 —
+    # 수정은 흔적 없이 과거를 바꾸지만 삭제는 보이고, 다시 적으면 새 행위자가 붙는다.
+    'list_sample_custody_events': (
+        'GET', '/platform/projects/{project_id}/samples/{sample_id}/custody-events',
+    ),
+    'append_sample_custody_event': (
+        'POST', '/platform/projects/{project_id}/samples/{sample_id}/custody-events',
+    ),
+    'delete_sample_custody_event': (
+        'DELETE',
+        '/platform/projects/{project_id}/samples/{sample_id}/custody-events/{event_id}',
+    ),
     'export_sample_inventory': (
         'GET', '/platform/projects/{project_id}/sample-inventory/exports/{template}',
     ),
@@ -62,6 +102,10 @@ PERMISSIONS: dict[str, str] = {
     'delete_sample': 'platform:sample-write',
     'hard_delete_sample': 'platform:sample-hard-delete',
     'list_sample_history': 'platform:read',
+    'list_sample_intakes': 'platform:read',
+    'list_sample_custody_events': 'platform:read',
+    'append_sample_custody_event': 'platform:sample-write',
+    'delete_sample_custody_event': 'platform:sample-write',
     'export_sample_inventory': 'platform:read',
 }
 
@@ -118,6 +162,15 @@ SCHEMAS: dict[str, dict] = {
                 ],
             },
             'intake_count': {'type': 'integer', 'minimum': 0},
+            # 파생값 — 사람이 편집하지 않으므로 create/patch 요청에는 없다.
+            # 규칙(가장 최근 사건이 received 면 보유 중)은 커널의 custody_state()
+            # 한 자리에만 산다. 클라이언트는 판정하지 않고 결과를 읽는다.
+            'custody_state': {
+                'type': 'string', 'nullable': True,
+                'enum': ['in_custody', 'released', None],
+            },
+            'latest_custody_occurred_on': {'type': 'string', 'nullable': True},
+            'custody_event_count': {'type': 'integer', 'minimum': 0},
             'created_at': {'type': 'string', 'nullable': True},
             'updated_at': {'type': 'string', 'nullable': True},
         },
@@ -214,6 +267,84 @@ SCHEMAS: dict[str, dict] = {
         },
         'additionalProperties': False,
     },
+    # ⚠️ 이름이 `SampleIntakeEnvelope` 가 아닌 이유: 그 키는 이미 `surface_projects`
+    # 가 프로젝트 상세용으로 소유하고 있고, 그쪽은 `sample_intake_id` 키에 tech_group
+    # 없이 좁은 모양이다. 계약 파사드가 키 중복을 DuplicateContractKeyError 로 거부해
+    # 두 표면이 같은 이름으로 다른 모양을 기르는 것을 구조적으로 막는다. 두 모양을
+    # 하나로 합치는 것은 프로젝트 상세 계약을 바꾸는 별개의 일이다.
+    'SampleIntakeHistoryEnvelope': {
+        'type': 'object',
+        'required': ['intake_id', 'sample_id', 'project_id'],
+        'properties': {
+            'intake_id': {'type': 'string', 'format': 'uuid'},
+            'sample_id': {'type': 'string', 'format': 'uuid'},
+            'project_id': {'type': 'string', 'format': 'uuid'},
+            # sample_number 와 test_category 는 일부러 없다 — 그것은 입고 행의 값이
+            # 아니라 **시료**의 값이고, 호출자는 이미 어느 시료를 물었는지 안다.
+            # 읽기 어댑터의 list_intakes 가 그 둘을 join 해 오는 것은 엑셀 export 가
+            # 여러 시료를 한 번에 훑기 때문이며, 이 엔드포인트가 물려받을 이유가 없다.
+            **_SAMPLE_INTAKE_PROPERTIES,
+            'created_at': {'type': 'string', 'nullable': True},
+            'updated_at': {'type': 'string', 'nullable': True},
+        },
+        'additionalProperties': False,
+    },
+    'SampleIntakeHistoryList': {
+        'type': 'object',
+        'required': ['items'],
+        'properties': {
+            'items': {
+                'type': 'array',
+                'items': {'$ref': '#/schemas/SampleIntakeHistoryEnvelope'},
+            },
+        },
+        'additionalProperties': False,
+    },
+    'SampleCustodyEventEnvelope': {
+        'type': 'object',
+        'required': [
+            'custody_event_id', 'sample_id', 'project_id', 'event_type',
+            'actor_subject',
+        ],
+        'properties': {
+            'custody_event_id': {'type': 'string', 'format': 'uuid'},
+            'sample_id': {'type': 'string', 'format': 'uuid'},
+            'project_id': {'type': 'string', 'format': 'uuid'},
+            **_SAMPLE_CUSTODY_PROPERTIES,
+            'actor_subject': {'type': 'string'},
+            'created_at': {'type': 'string', 'nullable': True},
+            'updated_at': {'type': 'string', 'nullable': True},
+        },
+        'additionalProperties': False,
+    },
+    'SampleCustodyEventList': {
+        'type': 'object',
+        'required': ['items'],
+        'properties': {
+            'items': {
+                'type': 'array',
+                'items': {'$ref': '#/schemas/SampleCustodyEventEnvelope'},
+            },
+        },
+        'additionalProperties': False,
+    },
+    'SampleCustodyEventRequest': {
+        'type': 'object',
+        # event_type 만 필수다 — 나머지는 PM 이 아는 만큼만 적는다. 실제 엑셀에도
+        # 날짜만 있고 상대방이 없는 행, 반입증만 있고 날짜가 없는 행이 섞여 있다.
+        'required': ['event_type'],
+        'properties': dict(_SAMPLE_CUSTODY_PROPERTIES),
+        'additionalProperties': False,
+    },
+    'SampleCustodyEventDeleteReceipt': {
+        'type': 'object',
+        'required': ['custody_event_id', 'deleted'],
+        'properties': {
+            'custody_event_id': {'type': 'string', 'format': 'uuid'},
+            'deleted': {'type': 'boolean', 'const': True},
+        },
+        'additionalProperties': False,
+    },
     'SampleInventoryExport': {
         'type': 'string',
         'format': 'binary',
@@ -285,6 +416,31 @@ OPERATIONS: dict[str, dict] = {
         response='SampleHistoryPage',
         permission=PERMISSIONS['list_sample_history'],
         error_responses={'404': 'Sample not found in this project.'},
+    ),
+    'list_sample_intakes': _operation(
+        request=None,
+        response='SampleIntakeHistoryList',
+        permission=PERMISSIONS['list_sample_intakes'],
+        error_responses={'404': 'Sample not found in this project.'},
+    ),
+    'list_sample_custody_events': _operation(
+        request=None,
+        response='SampleCustodyEventList',
+        permission=PERMISSIONS['list_sample_custody_events'],
+        error_responses={'404': 'Sample not found in this project.'},
+    ),
+    'append_sample_custody_event': _operation(
+        request='SampleCustodyEventRequest',
+        response='SampleCustodyEventEnvelope',
+        permission=PERMISSIONS['append_sample_custody_event'],
+        error_responses={'400': 'The custody event is invalid (event_type is required).',
+                         '404': 'Sample not found in this project.'},
+    ),
+    'delete_sample_custody_event': _operation(
+        request=None,
+        response='SampleCustodyEventDeleteReceipt',
+        permission=PERMISSIONS['delete_sample_custody_event'],
+        error_responses={'404': 'Custody event not found for this sample.'},
     ),
     'export_sample_inventory': _operation(
         request=None,
