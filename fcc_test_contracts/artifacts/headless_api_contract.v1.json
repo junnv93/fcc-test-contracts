@@ -1575,10 +1575,6 @@
           "type": "array"
         },
         "row_identity_source": {
-          "enum": [
-            "Col.HISTORY_CONDITION",
-            "Col.MATCH_DEFAULT"
-          ],
           "type": "string"
         },
         "sheet_name": {
