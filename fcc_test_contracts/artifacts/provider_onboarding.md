@@ -118,3 +118,102 @@ until your contract declares them.
 - **This package is `private` on npm.** You receive it as a tarball or a git
   ref, not from a registry. `npm pack` above produces exactly what you would be
   handed.
+
+## 7. Report the result — what the centre receives
+
+§5 assigns you **O-7: your contract JSON, verified by §3, in your CI.** This
+section says what happens to that verification once it passes.
+
+**You never send your contract artifact.** Operator ruling 2026-08-31 (option
+「나」): the artifact stays with its publisher and the centre receives only the
+result. You send a **conformance evidence document**, shaped by
+`artifacts/provider_contract_conformance_evidence.schema.v1.json`.
+
+### 7.1 Read the identity of the contract you checked against
+
+<!-- onboarding-commands: identity -->
+```console
+$ python3 scripts/print_contract_identity.py
+# exit: 0
+```
+
+⚠️ **`scripts/` travels with the box, not inside the wheel.** If you pinned this
+lane with `pip install git+…` you did not receive that file (measured
+2026-09-04 by a provider: the v0.1.12 `RECORD` has no `^scripts/` entry). The
+same value is importable, and that path reaches every consumer:
+
+```python
+from fcc_test_contracts.common.tree_artifacts import resolve_dependency_artifact
+from fcc_test_contracts.headless.contract_identity import contract_identity
+import json
+
+ssot = resolve_dependency_artifact('fcc_test_contracts/artifacts/headless_api_contract.v1.json')
+identity = contract_identity(json.loads(ssot.read_text(encoding='utf-8')))
+```
+
+⚠️ Reach the artifact through `resolve_dependency_artifact`, not through
+`importlib.resources.files(...)`: this lane's packages are PEP 420 namespace
+packages, and `files()` on one returns a `MultiplexedPath` that raises
+`NotADirectoryError` when you join a directory onto it. (Measured 2026-09-04 —
+by the author of this section, one command after writing it.)
+
+Both paths print `{algorithm, digest, operations}`. ⚠️ **The `digest` is what
+your evidence must name — not the `version` string.** Measured 2026-09-04: `version`
+was `1.0.0` for both the 39-operation contract and the 40-operation contract
+that replaced it, so a result keyed to the version cannot say which one it
+checked. The digest moves when the contract moves; the version did not.
+
+### 7.2 Emit the evidence
+
+```json
+{
+  "schema_version": 1,
+  "provider_id": "<your registry provider_id>",
+  "contract_identity": { "algorithm": "sha256", "digest": "<from 7.1>", "operations": 40 },
+  "subject":           { "algorithm": "sha256", "digest": "<identity of YOUR derived artifact>" },
+  "checker":           { "package": "fcc-test-contracts", "version": "<the version you ran>", "mode": "full" },
+  "result":            { "compatible": true, "issues": [] },
+  "produced_at": "<ISO-8601>",
+  "produced_by": { "repository": "<your repo>", "commit": "<sha>" }
+}
+```
+
+`subject.digest` is the identity of the artifact **you derived from your own
+implementation** — the same command in §7.1 accepts a path, so run it on your
+artifact.
+
+⚠️ **When you are conformant, `subject.digest` equals `contract_identity.digest`.**
+That is not a coincidence and not a shortcut: the compatibility checker strips
+the `provider` block from both sides before comparing, so two conformant
+contracts in the same family are the same document on the axis that matters.
+**That equality is what lets the centre verify you without ever holding your
+artifact** — which is the whole reason option 「나」 is implementable.
+
+### 7.3 What the centre does with it — and what makes it red
+
+Verification is **derived, not scheduled**. The central gate recomputes the SSOT
+digest on every run and compares it to your `contract_identity.digest`. There is
+no expiry field and no cron: when the contract changes, every outstanding
+evidence document becomes stale on the next gate run, automatically.
+
+Three named failures, so the cause is legible from the failure alone:
+
+| | |
+|---|---|
+| **evidence missing** | you are registered and no document arrived |
+| **evidence stale** | your `contract_identity.digest` is not the current SSOT digest |
+| **evidence non-conformant** | `subject.digest` disagrees with `contract_identity.digest`, or `result.compatible` is not `true` |
+
+⚠️ **Fail closed.** A registered provider with no evidence is not *unknown*, it
+is *non-conformant*. Absence and pass must never share a value.
+
+### 7.4 What this does not cover — read this before you rely on it
+
+**Forgery.** An unsigned evidence document can be hand-written with the correct
+digest and nothing here detects it. This channel closes **absence** and
+**staleness** only. Signing waits on an answer about key custody that does not
+exist yet; when it does, a signature block joins the schema's
+`required_top_level` and this subsection shrinks.
+
+Saying so is part of the design. A channel that looked stronger than it is would
+be the same defect it was built to end.

@@ -4,6 +4,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from fcc_test_contracts.headless.api_contracts import ApiContractSnapshot
+from fcc_test_contracts.headless.contract_identity import (
+    contract_comparison_document,
+)
 
 
 __all__ = [
@@ -62,14 +65,14 @@ def check_api_contract_compatibility(
         raise ValueError(f"unsupported api contract check mode: {mode!r}")
 
     expected = expected_contract or ApiContractSnapshot().to_dict()
-    provider_contract = {
-        key: value for key, value in provider_contract.items()
-        if key != 'provider'
-    }
-    expected = {
-        key: value for key, value in expected.items()
-        if key != 'provider'
-    }
+    # ⚠️ Both sides are reduced by the SAME function the identity digest uses.
+    # This used to be the dict comprehension below, spelled twice — and a third
+    # spelling would have appeared in `contract_identity` the day evidence
+    # documents needed to say *which contract was checked*. Three spellings of
+    # "the same contract" is three things that can drift apart without any of
+    # them saying so; one function is one answer.
+    provider_contract = contract_comparison_document(provider_contract)
+    expected = contract_comparison_document(expected)
     issues: list[ApiContractIssue] = []
     warnings: list[ApiContractIssue] = []
 
