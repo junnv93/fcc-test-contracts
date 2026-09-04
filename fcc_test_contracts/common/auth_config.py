@@ -162,6 +162,12 @@ def auth_mode_pairing_defect(auth_mode: object, web_auth_mode: object) -> 'str |
 #      않으면 부팅 거부다. 그 도달 여부는 compose 의 몫이라 이 함수가 볼 수 없고,
 #      **봉인이 따로 본다**(`tests/test_auth_mode_pairing.py`).
 #
+#      ⚠️ **정정 2026-09-04 — 위 문장이 상태를 둘로 봤는데 셋이었다.** 「도달한다」와
+#      「도달하지 않는다」 사이에 **「도달했으나 비었음」**이 있다. compose 는 이 필드를
+#      `${…:-}` 로 넘기므로 봉인은 만족되고, 이 함수의 짝 검사는 `'' == ''` 를 「일치」로
+#      읽는다. 실측(중앙 PC 최초 구축): 이 함수가 `OK` 를 냈고 그 설정은 부팅이 거부되는
+#      상태였다. 이제 `local_jwt_configs` 로 **부팅과 같은 검증**을 재기동 전에 돌린다.
+#
 # 이 함수는 1·2 와 짝을 함께 판정한다 — 셋을 따로 물으면 운영자가 하나만 고치고
 # 다시 막힌다.
 
@@ -171,6 +177,7 @@ def deployment_auth_defects(
     web_auth_mode: object,
     headless_auth_mode: object = None,
     local_jwt_secrets: object = None,
+    local_jwt_configs: object = None,
     insecure_transport_allowed: object = None,
     public_host: object = None,
 ) -> tuple:
@@ -203,6 +210,32 @@ def deployment_auth_defects(
                 'two surfaces must verify the SAME token, so a different secret, '
                 'issuer or audience makes every /headless call fail token validation'
             )
+
+    if local_jwt_configs is not None:
+        # ⚠️ **빈 값 둘은 「일치」다.** 위 `local_jwt_secrets` 축은 platform 과 headless 를
+        # **상등**으로만 보므로 `'' == ''` 이 통과한다. compose 는 이 필드들을
+        # `${FCC_PLATFORM_LOCAL_JWT_ISSUER:-}` 로 넘기므로 **도달은 하고 값은 빈다** —
+        # 그래서 「컨테이너에 도달하는가」를 보는 봉인도 만족된다. 두 축 사이에 상태
+        # 하나가 살아 있었다: **도달했으나 비었음.**
+        #
+        # 실측 2026-09-04(중앙 PC 최초 구축): 이 함수가 `OK` 를 냈고, 운영자가 그 뒤에
+        # `LOCAL_JWT_ISSUER` 가 양쪽 다 빈 것을 따로 발견했다. 그대로 재기동했으면
+        # `ValueError: local_jwt auth requires local_jwt_issuer` 로 부팅 거부였다.
+        #
+        # ⚠️ **필수 필드 목록을 여기 적지 않는다.** 그 목록은
+        # `local_identity.LocalJwtConfig.validate` 가 소유하고, 그것이 **부팅이 실제로
+        # 도는 검증**이다. 여기서 재표현하면 둘이 갈라지는 날 이 함수가 「정합」이라고
+        # 말하면서 부팅은 거부된다 — 지금 고치는 결함과 같은 모양이다. 그래서 import 하지
+        # 않고 **호출자가 만든 설정을 받아 그 객체에게 묻는다.**
+        for label, config in local_jwt_configs:
+            try:
+                config.validate()
+            except ValueError as exc:
+                defects.append(
+                    f'{label} is not bootable: {exc} — the API refuses to start with '
+                    'this configuration, so a restart would replace a running '
+                    'deployment with one that never comes up'
+                )
 
     if insecure_transport_allowed is not None:
         insecure = _as_bool(insecure_transport_allowed)
