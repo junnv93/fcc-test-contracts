@@ -1,0 +1,38 @@
+{
+  "$id": "provider_contract_conformance_evidence.schema.v1.json",
+  "schema_version": 1,
+  "status": "active_contract",
+  "owner_repository": "fcc-test-contracts",
+  "description": "Evidence manifest by which a provider reports that it checked its own contract against the SSOT, so the central lane can admit it WITHOUT receiving the provider's contract artifact.",
+  "decision": "Operator ruling 2026-08-31 option 'na': the provider checks its own contract in its own repository and the centre receives only the result. This schema is that result. The design of the result was ruled on 2026-09-04; see FCC monorepo .claude/exec-plans/active/2026-08-31-kc-provider-identity-결정문.md section 6.5.",
+  "required_top_level": [
+    "schema_version",
+    "provider_id",
+    "contract_identity",
+    "subject",
+    "checker",
+    "result",
+    "produced_at",
+    "produced_by"
+  ],
+  "contract_identity_required_fields": ["algorithm", "digest", "operations"],
+  "subject_required_fields": ["algorithm", "digest"],
+  "checker_required_fields": ["package", "version", "mode"],
+  "result_required_fields": ["compatible", "issues"],
+  "produced_by_required_fields": ["repository", "commit"],
+  "identity_rules": [
+    "contract_identity.digest MUST be produced by fcc_test_contracts.headless.contract_identity.contract_identity_digest — the centre recomputes it from its own SSOT and compares, so a second implementation of the canonical form is a second definition of 'the same contract'.",
+    "contract_identity.digest is the ONLY staleness axis. The contract document's 'version' string MUST NOT be used for that purpose: measured 2026-09-04, version stayed '1.0.0' across a real change from 39 to 40 operations, so two different contracts share one value on that axis.",
+    "contract_identity.operations is recorded for a human reading a diff and is NOT a judgement axis.",
+    "subject.digest is the identity of the artifact the provider derived FROM ITS OWN IMPLEMENTATION. It MUST equal contract_identity.digest when result.compatible is true, because the compatibility check strips the 'provider' block from both sides — that equality is what lets the centre verify conformance arithmetically without ever receiving the provider's artifact."
+  ],
+  "freshness_rule": "Verification is DERIVED, not scheduled. The central gate recomputes the SSOT digest on every run and compares it to contract_identity.digest, so a change to the SSOT invalidates every outstanding evidence document on the next run. There is no expiry timestamp and no cron: an expiry date would be a second opinion next to the digest, and the two would disagree the day the contract changed off-schedule.",
+  "absence_rule": "Fail closed. A registered provider with no evidence document is NOT 'unknown' — it is non-conformant, and the gate is red. Absence and pass must never share a value, which is the defect this whole axis exists to end.",
+  "failure_names": [
+    "evidence missing — no document for a registered provider",
+    "evidence stale — contract_identity.digest does not match the current SSOT digest",
+    "evidence non-conformant — subject.digest disagrees with contract_identity.digest, or result.compatible is not true"
+  ],
+  "notes": "⚠️ What this does NOT cover: FORGERY. An unsigned evidence document can be hand-written with the correct digest, and nothing here detects that. This schema closes ABSENCE and STALENESS only. Signing needs an answer about key custody that does not exist yet; when it does, a signature block joins required_top_level and this note shrinks. Claiming more than absence and staleness today would itself be the failure class this lane keeps naming — a check that looks stronger than it is.",
+  "unenforced_axes": ["authenticity of the producer", "that the subject was in fact derived from a running provider implementation"]
+}

@@ -22,7 +22,12 @@ name = "fcc-test-contracts"
 # version = 이 레인이 이미 소유한 npm 배포물 packages/api-artifacts/package.json
 # 과 상등. src/_version.py 는 fcc-unlicensed-headless 소유(GUI 앱 버전)라
 # 두 레인의 배포를 GUI 릴리스에 묶게 되므로 쓰지 않는다.
-version = "0.1.12"
+#
+# ⚠️ **「상등」은 2026-09-04 현재 거짓이고 그것을 재는 검사가 0건이다** — 이 값은
+# `0.1.13`, npm 쪽은 `0.1.4` 다. 이번 판올림에서 npm 을 끌어올려 맞추지 **않았다**:
+# 그러면 둘이 보조를 맞춰 온 것처럼 보이게 되고, 갈라진 사실 자체가 사라진다.
+# 위 문장은 지금 산문 주장이지 게이트가 아니다. 소유 웨이브 미정.
+version = "0.1.13"
 description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
 # requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
 # (`FROM python:3.11-slim`)에서 파생.
