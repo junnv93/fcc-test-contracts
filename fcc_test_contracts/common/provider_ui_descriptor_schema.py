@@ -61,9 +61,36 @@ FEATURE_STATUSES = (
 
 # ---------------------------------------------------------------------------
 # Row-identity source tokens. The descriptor declares WHICH SSOT a table's row
-# identity is derived from (Col.HISTORY_CONDITION or Col.MATCH_DEFAULT) — never a
-# hardcoded column array. The actual column list (``row_identity_columns``) is
-# derived from that SSOT by the provider builder.
+# identity is derived from — never a hardcoded column array. The actual column
+# list (``row_identity_columns``) is derived from that SSOT by the provider
+# builder, and naming the source is what keeps the two from drifting apart.
+#
+# ⚠️ **That intent is provider-neutral; the enum that used to enforce it was not.**
+# The schema constrained this field to the two constants below — which are one
+# provider's Python symbol names (``Col.*``, measured 2026-09-04: the only
+# ``Col.`` strings anywhere in the shared contract). A provider whose row
+# identity is its own set had no true value to write:
+#
+#   FCC  Col.MATCH_DEFAULT      (10)  Test Technology Band Bandwidth Channel
+#                                     Tone Location Mode Modulation Antenna
+#   FCC  Col.HISTORY_CONDITION  (14)  ↑ + four power columns
+#   KC   RESULT_MATCH_COLUMNS   (11)  ↑ MATCH_DEFAULT's ten + Temperature
+#
+# KC's identity is the ten **plus a temperature axis FCC does not have** (room /
+# low / high are different rows). Writing ``Col.MATCH_DEFAULT`` there would not
+# be merely meaningless — it would be **false**, and a consumer honouring it
+# would collapse three rows into one. That is the UI-side twin of the defect
+# D-4 closed (a result and its completion marker landing on different rows).
+#
+# So the enum is gone and the field stays required: the value now names **the
+# provider's own** row-identity SSOT symbol. FCC keeps writing the two constants
+# below; KC writes ``RESULT_MATCH_COLUMNS``; both are true. Same class as the
+# ``template_profile`` default (``fcc-default``) that §5① of the KC identity
+# ruling repaired — a shared contract carrying one provider's vocabulary.
+#
+# ⚠️ The two constants below are **FCC's**, kept because FCC's builder imports
+# them. They are not this contract's vocabulary and must not be re-closed into
+# an enum.
 # ---------------------------------------------------------------------------
 ROW_IDENTITY_SOURCE_HISTORY_CONDITION = 'Col.HISTORY_CONDITION'
 ROW_IDENTITY_SOURCE_MATCH_DEFAULT = 'Col.MATCH_DEFAULT'
@@ -175,7 +202,9 @@ PROVIDER_UI_DESCRIPTOR_SCHEMAS = {
             'table_id': {'type': 'string'},
             'label': {'type': 'string'},
             'sheet_name': {'type': 'string'},
-            'row_identity_source': {'type': 'string', 'enum': list(ROW_IDENTITY_SOURCES)},
+            # ⚠️ No ``enum``: see the ROW_IDENTITY_SOURCES comment. The value names
+            # the PROVIDER's own row-identity SSOT symbol, not one of FCC's two.
+            'row_identity_source': {'type': 'string'},
             'row_identity_columns': {'type': 'array', 'items': {'type': 'string'}},
             'columns': {
                 'type': 'array',
