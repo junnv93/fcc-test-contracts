@@ -29,6 +29,11 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / 'scripts'))
+
+# ⚠️ 게이트 자신을 import 한다 — 「무엇이 판정을 오염시키는가」의 SSOT 가 거기 있다.
+# 이 축이 그 사실을 복제하면 두 사본이 갈라지고, 실제로 갈라져 CI 를 빨갛게 만들었다.
+import lane_check  # noqa: E402
 
 from fcc_test_contracts.common.tree_artifacts import (  # noqa: E402
     _is_installed_location,
@@ -155,12 +160,39 @@ class TestThisAxisDoesNotMutateTheTreeItMeasures(unittest.TestCase):
     """
 
     def test_no_build_artifacts_are_left_in_the_source_tree(self):
-        strays = [name for name in ('build', 'fcc_test_contracts.egg-info')
+        """⚠️ 목록을 여기 적지 않는다 — `lane_check` 가 그 SSOT 다.
+
+        초판은 `('build', 'fcc_test_contracts.egg-info')` 를 손으로 적었고, 그 순간
+        같은 사실의 두 번째 사본이 생겼다. 그리고 갈라졌다: `lane_check` 가 오염으로
+        읽는 것은 `build` **하나뿐**이고(`CONFOUNDING_ARTIFACTS`), `.egg-info` 는
+        모듈 사본이 아니라 메타데이터라 판정을 흔들지 않는다.
+
+        실측 2026-09-04 — 그 차이가 중앙 저장소 CI 를 계속 빨갛게 만들고 있었다.
+        CI 워크플로 자신이 `pip install -e '.[test,oidc]'` 로 `.egg-info` 를 만드는데
+        이 시험이 그것을 금지했다. **검사가 자기 러너의 정상 동작을 결함으로 신고하는
+        상태**였고, 그 빨강이 기본이 되면 진짜 결함이 그 안에 묻힌다.
+
+        이 시험의 docstring 이 *"산문 주석으로 적는 것과 그것을 검사로 두는 것은 다르다"*
+        고 말한다. 한 걸음 더 필요했다 — **검사가 사실을 복제하지 않고 참조해야 한다.**
+        """
+        strays = [name for name in lane_check.CONFOUNDING_ARTIFACTS
                   if (PROJECT_ROOT / name).exists()]
         self.assertEqual(
             strays, [],
             f'소스 트리에 빌드 부산물이 남았다: {strays} — `lane_check` 가 이것을 '
             '오염으로 읽고 게이트 자체를 거부한다. 사본에서 설치하라.',
+        )
+
+    def test_this_axis_reads_the_gate_it_cites_instead_of_copying_it(self):
+        """인용한 SSOT 를 실제로 읽고 있는지 봉인한다.
+
+        위 시험이 다시 손 목록으로 돌아가면 이 시험이 먼저 빨개진다.
+        """
+        self.assertIsInstance(lane_check.CONFOUNDING_ARTIFACTS, tuple)
+        self.assertIn('build', lane_check.CONFOUNDING_ARTIFACTS)
+        self.assertNotIn(
+            'fcc_test_contracts.egg-info', lane_check.CONFOUNDING_ARTIFACTS,
+            'lane_check 이 egg-info 를 오염으로 세기 시작했다면 이 축의 전제가 바뀐 것이다',
         )
 
 
