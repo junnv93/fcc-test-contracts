@@ -7,34 +7,15 @@
 from __future__ import annotations
 
 # ⚠️ 이 상수들은 원본 스크립트에서 왔고 **지울 수 없다** — 여러 함수가 기본
-# 인자로 쓴다(`def f(..., *, root: Path = PROJECT_ROOT)`). 다만 기준이 바뀌었다:
-# 옛 형태는 `scripts/` 의 부모였고, 이제 이 모듈은 패키지 안에 있으므로
-# **패키지의 부모**가 저장소 루트다. 두 자리가 같은 곳을 가리키는지는
-# `_ROOT_IS_THE_REPOSITORY` 가 단언한다 — 조용히 어긋나면 이 모듈의 모든
-# 경로 계산이 한 칸씩 밀린다.
-from pathlib import Path as _Path
-
-# ⚠️ **모듈 위치에서 파생하면 안 된다** (2026-08-31 실측으로 배웠다). 이 모듈은
-# 「자기가 어느 저장소에 있나」가 아니라 **「지금 어느 저장소를 다루나」**를 알아야
-# 한다. 설치된 자리에서 `parents[1]` 은 `site-packages` 이고, 그러면 모든 경로
-# 계산이 엉뚱한 트리를 가리킨다 — 그리고 그 상태는 「경로가 맞다」와 같은 모양이다.
-# 대상 저장소는 **호출자가 있는 곳**이다.
+# 인자로 쓴다(`def f(..., *, root: Path = PROJECT_ROOT)`).
 #
-# ⚠️ 찾지 못하면 조용히 계속하지 않는다 — 아래 함수들이 전부 이 뿌리 위에서 파일을
-# 세므로, 틀린 뿌리는 「대상이 없다」로 조용히 답한다.
-from pathlib import Path as _P
-
-
-def _repository_root() -> _P:
-    """대상 저장소 = 호출자의 작업 디렉터리(또는 그 조상 중 첫 저장소)."""
-    here = _P.cwd().resolve()
-    for candidate in (here, *here.parents):
-        if (candidate / 'pyproject.toml').is_file() and (candidate / '.git').exists():
-            return candidate
-    raise RuntimeError(
-        f'대상 저장소를 찾지 못했다 (cwd={here}) — 이 도구는 저장소 안에서 실행해야 '
-        '한다. 모듈이 사는 곳이 아니라 **다루는 곳**이 기준이다.'
-    )
+# ⚠️ 이 파생은 **여기서 하지 않는다** — 경계 검사기
+# (`fcc_test_contracts.extraction_import_boundaries`)도 같은 질문을 하고, 열두 줄을
+# 두 벌 두면 그 사본이 갈라진다. 사유(설치본에서 `parents[1]` 은 `site-packages` 이고
+# 그 상태가 「경로가 맞다」와 같은 모양이라는 것)는 그 함수의 docstring 에 있다.
+from fcc_test_contracts.common.tree_artifacts import (  # noqa: E402
+    operating_repository_root as _repository_root,
+)
 
 
 PROJECT_ROOT = _repository_root()

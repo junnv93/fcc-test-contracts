@@ -33,6 +33,7 @@ __all__ = [
     'DependencyTreeUnavailable',
     'RelocationAmbiguity',
     'discover_tree_artifact',
+    'operating_repository_root',
     'resolve_dependency_artifact',
     'resolve_repo_artifact',
 ]
@@ -105,6 +106,34 @@ def discover_tree_artifact(anchor_file: str | Path, *segments: str) -> Path:
         if ancestor.joinpath(first).is_dir():
             return ancestor.joinpath(*segments)
     return here.parents[-1].joinpath(*segments)
+
+
+def operating_repository_root() -> Path:
+    """지금 **다루고 있는** 저장소의 루트 — 호출자의 cwd(또는 그 첫 조상 저장소).
+
+    ⚠️ 위 `discover_tree_artifact` 와 **다른 질문**이다. 그쪽은 *"내가 속한 트리는
+    어디인가"* 를 묻고 모듈 위치에서 파생한다. 이쪽은 *"지금 어느 저장소를 다루나"*
+    를 묻는다 — 추출 도구는 자기가 사는 곳이 아니라 조작 대상 트리 위에서 파일을 센다.
+
+    ⚠️ **모듈 위치에서 파생하면 안 된다** (2026-08-31 실측으로 배웠다). 설치된 자리에서
+    `parents[1]` 은 `site-packages` 이고, 그러면 모든 경로 계산이 엉뚱한 트리를
+    가리킨다 — 그리고 그 상태는 「경로가 맞다」와 **같은 모양**이다.
+
+    ⚠️ 찾지 못하면 조용히 계속하지 않는다. 호출자들이 전부 이 뿌리 위에서 파일을
+    세므로, 틀린 뿌리는 「대상이 없다」로 조용히 답한다.
+
+    ⚠️ 이 함수가 여기 있는 이유: 이것을 필요로 하는 모듈이 둘 이상이고(추출 계획기 ·
+    경계 검사기) 열두 줄을 복사하면 그 사본이 갈라진다. 위 §머리말이 이름 붙인 결함
+    계급과 같은 것이다 — 같은 사실이 두 곳에 있고 하나가 먼저 낡는다.
+    """
+    here = Path.cwd().resolve()
+    for candidate in (here, *here.parents):
+        if (candidate / 'pyproject.toml').is_file() and (candidate / '.git').exists():
+            return candidate
+    raise RuntimeError(
+        f'대상 저장소를 찾지 못했다 (cwd={here}) — 이 도구는 저장소 안에서 실행해야 '
+        '한다. 모듈이 사는 곳이 아니라 **다루는 곳**이 기준이다.'
+    )
 
 
 class DependencyTreeUnavailable(LookupError):
