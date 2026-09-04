@@ -7,11 +7,14 @@ import json
 from typing import Any, Iterable, Mapping, Optional, Sequence
 
 from fcc_test_kernel.domain.models.sample_inventory import (
+    CUSTODY_EVENT_FIELDS,
     INTAKE_FIELDS,
     REVISION_SNAPSHOT_FIELDS,
     SAMPLE_EDITABLE_FIELDS,
     SNAPSHOT_SCHEMA_VERSION,
     Sample,
+    SampleCustodyEvent,
+    SampleCustodyEventType,
     SampleIntake,
     SampleRevision,
     SampleRevisionEvent,
@@ -38,6 +41,10 @@ class SampleUnknownField(SampleInventoryPolicyError):
 
 class SampleInvalidFilter(SampleInventoryPolicyError):
     """A list/export filter is malformed."""
+
+
+class SampleInvalidCustodyEvent(SampleInventoryPolicyError):
+    """A custody event is missing its type or carries a field outside the contract."""
 
 
 def utc_now_iso(value: Optional[datetime] = None) -> str:
@@ -96,6 +103,62 @@ def validate_patch(payload: Mapping[str, Any]) -> dict[str, Any]:
     if not result:
         raise SampleInventoryPolicyError('sample patch must change at least one field')
     return result
+
+
+def validate_custody_event(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate one 반입/반출 사건 (ADR-0002).
+
+    ``event_type`` 만 필수다 — 나머지는 PM 이 아는 만큼만 적는다. 실제 엑셀에도
+    날짜만 있고 상대방이 없는 행, 반입증만 있고 날짜가 없는 행이 섞여 있으므로
+    빈 칸을 강제하면 사실대로 적을 수 없게 된다.
+
+    ⚠️ 반대로 ``event_type`` 은 비워둘 수 없다. 그것이 없으면 이 행은 보유 상태
+    계산에 참여할 수 없고, 그러면 사건 테이블을 만든 이유가 사라진다.
+    """
+    if not isinstance(payload, Mapping):
+        raise SampleInvalidCustodyEvent('custody event must be an object')
+    unknown = sorted(set(payload) - set(CUSTODY_EVENT_FIELDS))
+    if unknown:
+        raise SampleUnknownField(
+            f'unsupported custody event fields: {", ".join(unknown)}'
+        )
+    raw_type = payload.get('event_type')
+    if raw_type is None or str(raw_type).strip() == '':
+        raise SampleInvalidCustodyEvent('custody event requires event_type')
+    try:
+        event_type = (
+            raw_type if isinstance(raw_type, SampleCustodyEventType)
+            else SampleCustodyEventType(str(raw_type))
+        )
+    except ValueError as exc:
+        raise SampleInvalidCustodyEvent(
+            f'unsupported custody event_type: {raw_type!r}'
+        ) from exc
+    result: dict[str, Any] = {
+        field: payload.get(field) for field in CUSTODY_EVENT_FIELDS
+    }
+    result['event_type'] = event_type.value
+    return result
+
+
+def custody_events_projection(
+    events: Iterable[SampleCustodyEvent | Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    """Order custody events newest-first for display.
+
+    ``occurred_on`` 은 사람이 적는 자유 텍스트 날짜다(기존 축과 같다) — 정렬 키로
+    쓰기에 신뢰할 수 없으므로 **기록 순서**(``created_at``)가 1차 기준이고
+    ``occurred_on`` 은 표시용이다. 뒤늦게 적은 과거 사건도 적힌 그대로 보인다.
+    """
+    materialized = [
+        event.as_dict() if isinstance(event, SampleCustodyEvent) else dict(event)
+        for event in events
+    ]
+    return sorted(
+        materialized,
+        key=lambda item: (str(item.get('created_at') or ''), str(item.get('id') or '')),
+        reverse=True,
+    )
 
 
 def sample_projection(sample: Sample | Mapping[str, Any]) -> dict[str, Any]:
@@ -371,6 +434,7 @@ def _revision_order(revision: SampleRevision | Mapping[str, Any]) -> tuple[datet
 
 __all__ = [
     'SampleExpectedVersionConflict',
+    'SampleInvalidCustodyEvent',
     'SampleInvalidFilter',
     'SampleInvalidTransition',
     'SampleInventoryPolicyError',
@@ -379,6 +443,7 @@ __all__ = [
     'assert_expected_version',
     'canonical_snapshot',
     'choose_as_of_revision',
+    'custody_events_projection',
     'event_for_change',
     'filter_revision_snapshots',
     'next_revision_number',
@@ -389,6 +454,7 @@ __all__ = [
     'transition_status',
     'utc_now_iso',
     'validate_expected_version',
+    'validate_custody_event',
     'validate_inventory_filter',
     'validate_patch',
 ]
