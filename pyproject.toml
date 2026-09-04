@@ -27,7 +27,7 @@ name = "fcc-test-contracts"
 # `0.1.13`, npm 쪽은 `0.1.4` 다. 이번 판올림에서 npm 을 끌어올려 맞추지 **않았다**:
 # 그러면 둘이 보조를 맞춰 온 것처럼 보이게 되고, 갈라진 사실 자체가 사라진다.
 # 위 문장은 지금 산문 주장이지 게이트가 아니다. 소유 웨이브 미정.
-version = "0.1.13"
+version = "0.1.14"
 description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
 # requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
 # (`FROM python:3.11-slim`)에서 파생.

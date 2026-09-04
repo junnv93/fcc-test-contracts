@@ -23,6 +23,7 @@ Dependency-free by contract (stdlib only) so it stays importable from the
 from __future__ import annotations
 
 import json
+import sysconfig
 from importlib import resources as _resources
 from pathlib import Path
 
@@ -216,8 +217,28 @@ def resolve_dependency_artifact(rel_path: str) -> Path:
     honest answer to "where did my dependency put this" in that shape is that
     the question cannot be answered, not a path that looks authoritative.
     """
-    root = _tree_root(Path(__file__).resolve())
-    if root == root.parent:
+    here = Path(__file__).resolve()
+    root = _tree_root(here)
+    # ⚠️ **A consumer's project root is not this lane's tree.** :func:`_tree_root`
+    # falls back to the nearest ancestor holding ``.git`` or ``pyproject.toml``,
+    # and a provider installs this lane into a virtualenv **inside their own
+    # project** — so that walk finds the *consumer's* ``pyproject.toml`` and every
+    # repository-relative join then lands under the consumer, at a path nothing
+    # put anything at. The refusal below never fired, because it only asks whether
+    # the walk reached the filesystem root.
+    #
+    # Measured 2026-09-04, reported by a provider lane and reproduced minimally:
+    # a project holding ``pyproject.toml`` with ``venv/`` inside it resolved the
+    # SSOT contract to ``<consumer>/fcc_test_contracts/artifacts/…`` and returned
+    # it **without raising**. That is exactly the invention this module exists to
+    # refuse — *"a path that looks authoritative and is wrong"* — living in its own
+    # fallback.
+    #
+    # The discriminator is *where this module was read from*, not what sits above
+    # it: a module under an installation directory was installed, so there is no
+    # delivering checkout above it and only the packaged copy can answer. An
+    # editable install keeps the module in the source tree and is unaffected.
+    if root == root.parent or _is_installed_location(here):
         packaged = _packaged_artifact(rel_path)
         if packaged is not None:
             return packaged
@@ -231,6 +252,30 @@ def resolve_dependency_artifact(rel_path: str) -> Path:
             'sibling as a tree on sys.path, or ship the artifact as package data.'
         )
     return resolve_repo_artifact(__file__, rel_path)
+
+
+def _is_installed_location(here: Path) -> bool:
+    """Was this module read from an installation directory rather than a checkout?
+
+    Two questions, because neither alone covers the shapes this lane ships into:
+    the running interpreter's own ``purelib``/``platlib`` answer for the
+    environment executing right now, and the ``site-packages`` /
+    ``dist-packages`` path component answers for an environment some *other*
+    interpreter created (a provider's ``venv/`` invoked by path, a bundled
+    runtime), which ``sysconfig`` does not describe.
+
+    Deliberately **not** a check for "is there a checkout above me": that is the
+    question that fails, because a consumer project is a checkout and it is not
+    this lane's.
+    """
+    if any(part in {'site-packages', 'dist-packages'} for part in here.parts):
+        return True
+    paths = sysconfig.get_paths()
+    for key in ('purelib', 'platlib'):
+        location = paths.get(key)
+        if location and here.is_relative_to(Path(location).resolve()):
+            return True
+    return False
 
 
 def _packaged_artifact(rel_path: str) -> Path | None:
