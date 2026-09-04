@@ -112,10 +112,12 @@ OPERATIONS = {
         request=None,
         response='ProviderCapabilitiesResponse',
         permission=PERMISSIONS['provider_capabilities'],
+        feature='core',
     ),
     'provider_ui_descriptor': _operation(
         request=None,
         response='ProviderUiDescriptor',
         permission=PERMISSIONS['provider_ui_descriptor'],
+        feature='core',
     ),
 }

@@ -8,9 +8,24 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# ⚠️ THIS repository is the SSOT this script publishes, so it must come before
+# anything pip installed. Measured 2026-09-05: without this line the script
+# imported ``fcc_test_contracts`` from the interpreter's site-packages and wrote
+# THAT contract into ``artifacts/``. The installed copy still carried the
+# ``row_identity_source`` enum removed in PR #25, so running the publish command
+# exactly as §9 of the judgement documents it silently reinstated a repaired
+# defect in the delivered artifact — and the artifact is what providers derive
+# from. A publisher that reads an installed copy of what it is publishing is the
+# same shape as a seal that compares two copies of one document.
+#
+# ⚠️ Its sibling ``export_headless_openapi.py`` already had this line; this one
+# did not, which is why one publisher was correct and the other was not. Six
+# scripts under ``scripts/`` still have the gap — registered as lane debt.
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 SRC_ROOT = PROJECT_ROOT / 'src'
 if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
+    sys.path.insert(1, str(SRC_ROOT))
 
 from fcc_test_contracts.common.tree_artifacts import resolve_repo_artifact  # noqa: E402
 

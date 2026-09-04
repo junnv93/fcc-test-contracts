@@ -440,11 +440,30 @@ TEST_PLAN_GENERATION_SCHEMAS: dict = {
         },
         'additionalProperties': False,
     },
+    # ⚠️ The generation axis names its handle ``generation_job_id`` — the SAME
+    # spelling the route consumes as ``{generation_job_id}``. Before 2026-09-05
+    # these three schemas produced ``job_id`` while the route consumed
+    # ``{generation_job_id}``, and that single mismatch was two defects at once:
+    #
+    #   1. ``generation_job_id`` had NO producer. A client could not learn
+    #      mechanically where that path segment comes from — the value exists on
+    #      the wire but no declared field is spelled like the parameter.
+    #   2. ``job_id`` meant two different things on two axes. The measurement
+    #      axis serves ``/headless/jobs/{job_id}`` and a machine derivation that
+    #      reads "response field x produces path param x" therefore linked
+    #      ``get_measurement_job`` to ``submit_test_plan_generation``.
+    #
+    # ⚠️ The renaming had to go THIS direction, not the other. Spelling the
+    # route ``{job_id}`` would have been structurally impossible:
+    # ``HEADLESS_API_PATH_PARAMS`` is keyed by parameter NAME, and the two axes
+    # disagree on type — measurement ``job_id`` is ``integer, minimum 1``,
+    # generation is an opaque ``string``. One name cannot hold both schemas, so
+    # the collision was never a matter of taste.
     'TestPlanGenerationSubmittedResponse': {
         'type': 'object',
-        'required': ['job_id', 'project_id', 'status', 'request_sha256', 'matrix_revision'],
+        'required': ['generation_job_id', 'project_id', 'status', 'request_sha256', 'matrix_revision'],
         'properties': {
-            'job_id': {'type': 'string'},
+            'generation_job_id': {'type': 'string'},
             'project_id': {'type': 'string'},
             'status': {'type': 'string'},
             'request_sha256': {'type': 'string'},
@@ -455,12 +474,12 @@ TEST_PLAN_GENERATION_SCHEMAS: dict = {
     'TestPlanGenerationJobResponse': {
         'type': 'object',
         'required': [
-            'job_id', 'project_id', 'status', 'request_sha256',
+            'generation_job_id', 'project_id', 'status', 'request_sha256',
             'matrix_revision', 'matrix_sha256', 'draft_id',
             'error_code', 'error_message', 'created_at', 'updated_at',
         ],
         'properties': {
-            'job_id': {'type': 'string'},
+            'generation_job_id': {'type': 'string'},
             'project_id': {'type': 'string'},
             'status': {'type': 'string'},
             'request_sha256': {'type': 'string'},
@@ -476,9 +495,9 @@ TEST_PLAN_GENERATION_SCHEMAS: dict = {
     },
     'TestPlanGenerationMetadataResponse': {
         'type': 'object',
-        'required': ['job_id', 'status', 'draft_id', 'metadata'],
+        'required': ['generation_job_id', 'status', 'draft_id', 'metadata'],
         'properties': {
-            'job_id': {'type': 'string'},
+            'generation_job_id': {'type': 'string'},
             'status': {'type': 'string'},
             'draft_id': {'type': ['string', 'null']},
             'metadata': {'type': ['object', 'null']},
@@ -1605,21 +1624,25 @@ OPERATIONS = {
         request='CreateTestPlanDraftRequest',
         response='TestPlanDraftView',
         permission=PERMISSIONS['create_test_plan_draft'],
+        feature='test-plan-authoring',
     ),
     'get_test_plan_draft': _operation(
         request=None,
         response='TestPlanDraftView',
         permission=PERMISSIONS['get_test_plan_draft'],
+        feature='test-plan-authoring',
     ),
     'add_test_plan_draft_row': _operation(
         request='AddTestPlanDraftRowRequest',
         response='TestPlanDraftRowView',
         permission=PERMISSIONS['add_test_plan_draft_row'],
+        feature='test-plan-authoring',
     ),
     'remove_test_plan_draft_row': _operation(
         request=None,
         response='RemoveTestPlanDraftRowResponse',
         permission=PERMISSIONS['remove_test_plan_draft_row'],
+        feature='test-plan-authoring',
     ),
     # Bulk row replace (chamber-and-draft-hardening, 2026-06-23) — replace ALL rows
     # in one atomic transaction (PUT on the rows collection). The editor sends the
@@ -1629,6 +1652,7 @@ OPERATIONS = {
         request='ReplaceTestPlanDraftRowsRequest',
         response='ReplaceTestPlanDraftRowsResponse',
         permission=PERMISSIONS['replace_test_plan_draft_rows'],
+        feature='test-plan-authoring',
         error_responses={
             '404': (
                 'Draft not found, or it belongs to a different project '
@@ -1644,12 +1668,14 @@ OPERATIONS = {
         request=None,
         response='ValidateTestPlanDraftResponse',
         permission=PERMISSIONS['validate_test_plan_draft'],
+        feature='test-plan-authoring',
         error_responses={'503': REFERENCE_DATA_NOT_PROVISIONED_DESCRIPTION},
     ),
     'publish_test_plan_draft': _operation(
         request=None,
         response='PublishedTestPlanView',
         permission=PERMISSIONS['publish_test_plan_draft'],
+        feature='test-plan-publication',
         # P2 cleanup (test-plan-publish-route-p2-cleanup, 2026-06-07) — the
         # verbatim publish-time audit snapshots are opt-in payload so the default
         # response stays lean (they are large/audit-only). Omitted/false →
@@ -1692,6 +1718,7 @@ OPERATIONS = {
         request=None,
         response='ListTestPlanDraftsResponse',
         permission=PERMISSIONS['list_test_plan_drafts'],
+        feature='test-plan-authoring',
         query_params=[
             {
                 'name': 'status',
@@ -1727,6 +1754,7 @@ OPERATIONS = {
         request=None,
         response='TestPlanDraftView',
         permission=PERMISSIONS['archive_test_plan_draft'],
+        feature='test-plan-authoring',
         error_responses={
             '409': (
                 'Draft cannot be archived from its current status (e.g. '
@@ -1742,6 +1770,7 @@ OPERATIONS = {
         request=None,
         response='ListPublishedTestPlansResponse',
         permission=PERMISSIONS['list_published_test_plans'],
+        feature='test-plan-publication',
         query_params=[
             {
                 'name': 'limit',
@@ -1759,6 +1788,7 @@ OPERATIONS = {
         request=None,
         response='PublishedTestPlanView',
         permission=PERMISSIONS['get_published_test_plan'],
+        feature='test-plan-publication',
         error_responses={
             '404': (
                 'No publication with that plan_id. The identifier is opaque and '
@@ -1775,6 +1805,7 @@ OPERATIONS = {
         request=None,
         response='TestPlanImportResponse',
         permission=PERMISSIONS['import_test_plan'],
+        feature='test-plan-publication',
         multipart_request=True,
         error_responses={
             '422': (
@@ -1793,6 +1824,7 @@ OPERATIONS = {
         request=None,
         response='',
         permission=PERMISSIONS['export_test_plan_draft'],
+        feature='test-plan-export',
         binary_response=True,
         binary_media_type=XLSX_MEDIA_TYPE,
         error_responses={
@@ -1810,11 +1842,13 @@ OPERATIONS = {
         request=None,
         response='TestPlanGenerationCatalogueResponse',
         permission=PERMISSIONS['list_test_plan_generation_catalogue'],
+        feature='test-plan-generation',
     ),
     'preview_test_plan_generation': _operation(
         request='TestPlanGenerationRequest',
         response='TestPlanGenerationPreviewResponse',
         permission=PERMISSIONS['preview_test_plan_generation'],
+        feature='test-plan-generation',
         request_required=True,
         error_responses={
             # Pre-existing contract defect fixed in passing (2026-08-27): the
@@ -1833,6 +1867,7 @@ OPERATIONS = {
         request='TestPlanGenerationSubmitRequest',
         response='TestPlanGenerationSubmittedResponse',
         permission=PERMISSIONS['submit_test_plan_generation'],
+        feature='test-plan-generation',
         header_params=[
             {
                 'name': 'Idempotency-Key',
@@ -1859,16 +1894,19 @@ OPERATIONS = {
         request=None,
         response='TestPlanGenerationJobResponse',
         permission=PERMISSIONS['get_test_plan_generation'],
+        feature='test-plan-generation',
     ),
     'get_test_plan_generation_metadata': _operation(
         request=None,
         response='TestPlanGenerationMetadataResponse',
         permission=PERMISSIONS['get_test_plan_generation_metadata'],
+        feature='test-plan-generation',
     ),
     'list_test_plan_generation_rows': _operation(
         request=None,
         response='TestPlanGenerationRowPageResponse',
         permission=PERMISSIONS['list_test_plan_generation_rows'],
+        feature='test-plan-generation',
         query_params=[
             {
                 'name': 'after_draft_row_id',

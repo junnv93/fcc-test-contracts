@@ -289,11 +289,13 @@ OPERATIONS = {
         request=None,
         response='MeasurementResultEnvelopeList',
         permission=PERMISSIONS['list_session_results'],
+        feature='session-results',
     ),
     'list_session_artifacts': _operation(
         request=None,
         response='ArtifactMetadataList',
         permission=PERMISSIONS['list_session_artifacts'],
+        feature='session-results',
     ),
     # Measurement-result workbook export (2026-08-11). The workbook format is ours
     # (``measurement_result_template.v1.json``), so this is a render of rows the
@@ -304,6 +306,7 @@ OPERATIONS = {
         request=None,
         response='',
         permission=PERMISSIONS['export_session_results'],
+        feature='session-results',
         binary_response=True,
         binary_media_type=XLSX_MEDIA_TYPE,
         error_responses={
@@ -317,6 +320,7 @@ OPERATIONS = {
         request=None,
         response='MeasurementAttemptPage',
         permission=PERMISSIONS['list_session_attempts'],
+        feature='session-results',
         query_params=[
             {
                 'name': 'cursor',
@@ -347,5 +351,6 @@ OPERATIONS = {
         request='SubmitReportRequest',
         response='ReportRequestSubmitted',
         permission=PERMISSIONS['submit_report_request'],
+        feature='report-automation',
     ),
 }

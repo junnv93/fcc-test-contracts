@@ -1,7 +1,7 @@
 {
   "$id": "provider_contract_conformance_evidence.schema.v1.json",
   "schema_version": 1,
-  "status": "active_contract",
+  "status": "superseded",
   "owner_repository": "fcc-test-contracts",
   "description": "Evidence manifest by which a provider reports that it checked its own contract against the SSOT, so the central lane can admit it WITHOUT receiving the provider's contract artifact.",
   "decision": "Operator ruling 2026-08-31 option 'na': the provider checks its own contract in its own repository and the centre receives only the result. This schema is that result. The design of the result was ruled on 2026-09-04; see FCC monorepo .claude/exec-plans/active/2026-08-31-kc-provider-identity-결정문.md section 6.5.",
@@ -15,11 +15,28 @@
     "produced_at",
     "produced_by"
   ],
-  "contract_identity_required_fields": ["algorithm", "digest", "operations"],
-  "subject_required_fields": ["algorithm", "digest"],
-  "checker_required_fields": ["package", "version", "mode"],
-  "result_required_fields": ["compatible", "issues"],
-  "produced_by_required_fields": ["repository", "commit"],
+  "contract_identity_required_fields": [
+    "algorithm",
+    "digest",
+    "operations"
+  ],
+  "subject_required_fields": [
+    "algorithm",
+    "digest"
+  ],
+  "checker_required_fields": [
+    "package",
+    "version",
+    "mode"
+  ],
+  "result_required_fields": [
+    "compatible",
+    "issues"
+  ],
+  "produced_by_required_fields": [
+    "repository",
+    "commit"
+  ],
   "identity_rules": [
     "contract_identity.digest MUST be produced by fcc_test_contracts.headless.contract_identity.contract_identity_digest — the centre recomputes it from its own SSOT and compares, so a second implementation of the canonical form is a second definition of 'the same contract'.",
     "contract_identity.digest is the ONLY staleness axis. The contract document's 'version' string MUST NOT be used for that purpose: measured 2026-09-04, version stayed '1.0.0' across a real change from 39 to 40 operations, so two different contracts share one value on that axis.",
@@ -34,5 +51,10 @@
     "evidence non-conformant — subject.digest disagrees with contract_identity.digest, or result.compatible is not true"
   ],
   "notes": "⚠️ What this does NOT cover: FORGERY. An unsigned evidence document can be hand-written with the correct digest, and nothing here detects that. This schema closes ABSENCE and STALENESS only. Signing needs an answer about key custody that does not exist yet; when it does, a signature block joins required_top_level and this note shrinks. Claiming more than absence and staleness today would itself be the failure class this lane keeps naming — a check that looks stronger than it is.",
-  "unenforced_axes": ["authenticity of the producer", "that the subject was in fact derived from a running provider implementation"]
+  "unenforced_axes": [
+    "authenticity of the producer",
+    "that the subject was in fact derived from a running provider implementation"
+  ],
+  "superseded_by": "provider_contract_conformance_evidence.schema.v2.json",
+  "superseded_reason": "⚠️ Retired in place rather than left beside v2 (2026-09-05). A v1 document names a whole-contract digest, so a provider that serves part of the contract can never produce one — that is the block v2 exists to lift. Leaving v1 'active' would also leave a second, weaker schema a provider could publish against to avoid declaring its scope at all, and a gate with two accepted shapes admits the looser one. Nothing was published against v1: confirmed with the KC lane 2026-09-05 (evidence produced in their repository, never handed to central)."
 }

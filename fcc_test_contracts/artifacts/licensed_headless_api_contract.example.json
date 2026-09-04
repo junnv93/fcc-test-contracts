@@ -1,7 +1,42 @@
 {
   "compatibility_major": 1,
+  "features": {
+    "core": {
+      "description": "Identity, contract discovery and backend liveness. Required of every provider \u2014 without these central cannot even ask what the provider supports, so no declaration can excuse their absence.",
+      "required": true
+    },
+    "measurement-jobs": {
+      "description": "The measurement job queue: submit, list, read and stop. \u26a0\ufe0f Surface only \u2014 whether a worker consumes the queue is a runtime fact that headless_status reports, not a contract fact.",
+      "required": false
+    },
+    "report-automation": {
+      "description": "Report generation requests, their outputs and the download stream.",
+      "required": false
+    },
+    "session-results": {
+      "description": "Reading what a measurement session produced: results, attempts, artifacts and the results export.",
+      "required": false
+    },
+    "test-plan-authoring": {
+      "description": "Creating and editing test-plan drafts and their rows, including validation.",
+      "required": false
+    },
+    "test-plan-export": {
+      "description": "Writing a draft back out as the provider's own workbook. \u26a0\ufe0f Separate from authoring because it is blocked by a different thing \u2014 the draft-to-workbook column mapping \u2014 and a provider can author fully while having no such mapping.",
+      "required": false
+    },
+    "test-plan-generation": {
+      "description": "Deriving a test-plan draft from the generation catalogue: preview, submit, and read back the generation job.",
+      "required": false
+    },
+    "test-plan-publication": {
+      "description": "Publishing a draft as an immutable plan, listing and reading publications, and importing a plan from a workbook.",
+      "required": false
+    }
+  },
   "operations": {
     "add_test_plan_draft_row": {
+      "feature": "test-plan-authoring",
       "permission": "test_plan:author",
       "request": "AddTestPlanDraftRowRequest",
       "response": "TestPlanDraftRowView"
@@ -10,21 +45,25 @@
       "error_responses": {
         "409": "Draft cannot be archived from its current status (e.g. published) or a concurrent transition conflicted. Re-archiving an already-archived draft is idempotent (200, not 409)."
       },
+      "feature": "test-plan-authoring",
       "permission": "test_plan:author",
       "request": null,
       "response": "TestPlanDraftView"
     },
     "cancel_report_automation_request": {
+      "feature": "report-automation",
       "permission": "report_automation:control",
       "request": "CancelReportAutomationRequest",
       "response": "CancelReportAutomationResponse"
     },
     "create_report_output_download": {
+      "feature": "report-automation",
       "permission": "report_automation:read",
       "request": "CreateReportOutputDownloadRequest",
       "response": "ReportOutputDownloadGrant"
     },
     "create_test_plan_draft": {
+      "feature": "test-plan-authoring",
       "permission": "test_plan:author",
       "request": "CreateTestPlanDraftRequest",
       "response": "TestPlanDraftView"
@@ -35,6 +74,7 @@
       "error_responses": {
         "422": "The session has no measurement rows \u2014 there is nothing to render into a result workbook (SESSION_RESULTS_EMPTY)."
       },
+      "feature": "session-results",
       "permission": "headless:read",
       "request": null,
       "response": ""
@@ -46,11 +86,13 @@
         "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
         "422": "Draft has no rows \u2014 an empty plan has nothing to export."
       },
+      "feature": "test-plan-export",
       "permission": "test_plan:read",
       "request": null,
       "response": ""
     },
     "get_measurement_job": {
+      "feature": "measurement-jobs",
       "permission": "headless:read",
       "request": null,
       "response": "MeasurementJobSnapshot"
@@ -59,11 +101,13 @@
       "error_responses": {
         "404": "No publication with that plan_id. The identifier is opaque and server-generated, so an unknown one is a genuine not-found \u2014 not a scope refusal."
       },
+      "feature": "test-plan-publication",
       "permission": "platform:chamber",
       "request": null,
       "response": "PublishedTestPlanView"
     },
     "get_report_preflight": {
+      "feature": "report-automation",
       "permission": "report_automation:read",
       "query_params": [
         {
@@ -79,36 +123,43 @@
       "response": "ReportPreflightSummary"
     },
     "get_report_request": {
+      "feature": "report-automation",
       "permission": "report_automation:read",
       "request": null,
       "response": "ReportRequestSnapshot"
     },
     "get_test_plan_draft": {
+      "feature": "test-plan-authoring",
       "permission": "test_plan:read",
       "request": null,
       "response": "TestPlanDraftView"
     },
     "get_test_plan_generation": {
+      "feature": "test-plan-generation",
       "permission": "test_plan:read",
       "request": null,
       "response": "TestPlanGenerationJobResponse"
     },
     "get_test_plan_generation_metadata": {
+      "feature": "test-plan-generation",
       "permission": "test_plan:read",
       "request": null,
       "response": "TestPlanGenerationMetadataResponse"
     },
     "headless_api_contract": {
+      "feature": "core",
       "permission": "public",
       "request": null,
       "response": "ApiContractDocument"
     },
     "headless_status": {
+      "feature": "core",
       "permission": "headless:read",
       "request": null,
       "response": "HeadlessBackendStatusSnapshot"
     },
     "health_check": {
+      "feature": "core",
       "permission": "public",
       "request": null,
       "response": "HealthCheckResponse"
@@ -117,17 +168,20 @@
       "error_responses": {
         "422": "Workbook unprocessable \u2014 the parsed rows fail the draft write gate (out-of-scope sub_family / capability taxonomy violation)."
       },
+      "feature": "test-plan-publication",
       "multipart_request": true,
       "permission": "test_plan:author",
       "request": null,
       "response": "TestPlanImportResponse"
     },
     "list_measurement_jobs": {
+      "feature": "measurement-jobs",
       "permission": "headless:read",
       "request": null,
       "response": "MeasurementJobList"
     },
     "list_published_test_plans": {
+      "feature": "test-plan-publication",
       "permission": "test_plan:read",
       "query_params": [
         {
@@ -143,16 +197,19 @@
       "response": "ListPublishedTestPlansResponse"
     },
     "list_report_outputs": {
+      "feature": "report-automation",
       "permission": "report_automation:read",
       "request": null,
       "response": "ReportOutputMetadataList"
     },
     "list_session_artifacts": {
+      "feature": "session-results",
       "permission": "headless:read",
       "request": null,
       "response": "ArtifactMetadataList"
     },
     "list_session_attempts": {
+      "feature": "session-results",
       "permission": "headless:read",
       "query_params": [
         {
@@ -185,11 +242,13 @@
       "response": "MeasurementAttemptPage"
     },
     "list_session_results": {
+      "feature": "session-results",
       "permission": "headless:read",
       "request": null,
       "response": "MeasurementResultEnvelopeList"
     },
     "list_test_plan_drafts": {
+      "feature": "test-plan-authoring",
       "permission": "test_plan:read",
       "query_params": [
         {
@@ -219,11 +278,13 @@
       "response": "ListTestPlanDraftsResponse"
     },
     "list_test_plan_generation_catalogue": {
+      "feature": "test-plan-generation",
       "permission": "test_plan:read",
       "request": null,
       "response": "TestPlanGenerationCatalogueResponse"
     },
     "list_test_plan_generation_rows": {
+      "feature": "test-plan-generation",
       "permission": "test_plan:read",
       "query_params": [
         {
@@ -251,17 +312,20 @@
         "409": "Conflict \u2014 the production matrix cannot produce rows for this request, the preview is stale, or a staged WLAN request has missing, stale, or empty production input.",
         "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
       },
+      "feature": "test-plan-generation",
       "permission": "test_plan:read",
       "request": "TestPlanGenerationRequest",
       "request_required": true,
       "response": "TestPlanGenerationPreviewResponse"
     },
     "provider_capabilities": {
+      "feature": "core",
       "permission": "headless:read",
       "request": null,
       "response": "ProviderCapabilitiesResponse"
     },
     "provider_ui_descriptor": {
+      "feature": "core",
       "permission": "headless:read",
       "request": null,
       "response": "ProviderUiDescriptor"
@@ -273,6 +337,7 @@
         "409": "Publish conflict \u2014 the draft is not DRAFT (e.g. archived), a concurrent transition won the race, or materialize found a duplicate measurement condition (ADR-0005 Decision A reject).",
         "422": "Draft is unpublishable (no rows \u2014 an empty plan has no meaning)."
       },
+      "feature": "test-plan-publication",
       "permission": "test_plan:author",
       "query_params": [
         {
@@ -288,6 +353,7 @@
       "response": "PublishedTestPlanView"
     },
     "remove_test_plan_draft_row": {
+      "feature": "test-plan-authoring",
       "permission": "test_plan:author",
       "request": null,
       "response": "RemoveTestPlanDraftRowResponse"
@@ -297,16 +363,19 @@
         "404": "Draft not found, or it belongs to a different project (cross-project existence is hidden behind the project scope).",
         "409": "Row replace conflict \u2014 the draft is not DRAFT (archived/published, terminal row freeze) or a DB integrity constraint was violated."
       },
+      "feature": "test-plan-authoring",
       "permission": "test_plan:author",
       "request": "ReplaceTestPlanDraftRowsRequest",
       "response": "ReplaceTestPlanDraftRowsResponse"
     },
     "report_automation_stats": {
+      "feature": "report-automation",
       "permission": "report_automation:read",
       "request": null,
       "response": "ReportAutomationQueueStats"
     },
     "stop_measurement_job": {
+      "feature": "measurement-jobs",
       "permission": "headless:control",
       "request": "StopMeasurementJobRequest",
       "response": "StopMeasurementJobResponse"
@@ -317,6 +386,7 @@
         "409": "Integrity conflict \u2014 the granted file bytes no longer match the signed sha256 (changed/corrupt on disk; request a fresh grant).",
         "410": "Gone \u2014 the download token/grant has expired (access window elapsed; request a fresh grant)."
       },
+      "feature": "report-automation",
       "permission": "public",
       "query_params": [
         {
@@ -331,11 +401,13 @@
       "response": ""
     },
     "submit_measurement_job": {
+      "feature": "measurement-jobs",
       "permission": "headless:control",
       "request": "SubmitMeasurementJobRequest",
       "response": "MeasurementJobSubmitted"
     },
     "submit_report_request": {
+      "feature": "report-automation",
       "permission": "report_automation:control",
       "request": "SubmitReportRequest",
       "response": "ReportRequestSubmitted"
@@ -345,6 +417,7 @@
         "409": "Conflict \u2014 the preview is stale, the idempotency key was reused with a different request, or a staged WLAN request has missing, stale, or empty production input.",
         "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
       },
+      "feature": "test-plan-generation",
       "header_params": [
         {
           "description": "Project-scoped retry key. Reusing it with a different canonical request returns 409.",
@@ -366,6 +439,7 @@
       "error_responses": {
         "503": "Reference data is not provisioned \u2014 a lookup family this operation needs has no rows, so the capability matrix cannot be built. An operator must seed it; retrying does not help."
       },
+      "feature": "test-plan-authoring",
       "permission": "test_plan:read",
       "request": null,
       "response": "ValidateTestPlanDraftResponse"
@@ -592,6 +666,9 @@
         "compatibility_major": {
           "type": "integer"
         },
+        "features": {
+          "type": "object"
+        },
         "operations": {
           "type": "object"
         },
@@ -614,7 +691,8 @@
         "provider",
         "routes",
         "operations",
-        "schemas"
+        "schemas",
+        "features"
       ],
       "type": "object"
     },
@@ -983,8 +1061,7 @@
       },
       "required": [
         "measurement_jobs",
-        "workers",
-        "report_automation"
+        "workers"
       ],
       "type": "object"
     },
@@ -2566,7 +2643,7 @@
             "null"
           ]
         },
-        "job_id": {
+        "generation_job_id": {
           "type": "string"
         },
         "matrix_revision": {
@@ -2592,7 +2669,7 @@
         }
       },
       "required": [
-        "job_id",
+        "generation_job_id",
         "project_id",
         "status",
         "request_sha256",
@@ -2683,7 +2760,7 @@
             "null"
           ]
         },
-        "job_id": {
+        "generation_job_id": {
           "type": "string"
         },
         "metadata": {
@@ -2697,7 +2774,7 @@
         }
       },
       "required": [
-        "job_id",
+        "generation_job_id",
         "status",
         "draft_id",
         "metadata"
@@ -3097,7 +3174,7 @@
     "TestPlanGenerationSubmittedResponse": {
       "additionalProperties": false,
       "properties": {
-        "job_id": {
+        "generation_job_id": {
           "type": "string"
         },
         "matrix_revision": {
@@ -3114,7 +3191,7 @@
         }
       },
       "required": [
-        "job_id",
+        "generation_job_id",
         "project_id",
         "status",
         "request_sha256",

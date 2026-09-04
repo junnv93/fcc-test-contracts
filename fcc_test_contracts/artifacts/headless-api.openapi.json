@@ -68,6 +68,10 @@
           "compatibility_major": {
             "type": "integer"
           },
+          "features": {
+            "additionalProperties": true,
+            "type": "object"
+          },
           "operations": {
             "additionalProperties": true,
             "type": "object"
@@ -93,7 +97,8 @@
           "provider",
           "routes",
           "operations",
-          "schemas"
+          "schemas",
+          "features"
         ],
         "type": "object"
       },
@@ -489,8 +494,7 @@
         },
         "required": [
           "measurement_jobs",
-          "workers",
-          "report_automation"
+          "workers"
         ],
         "type": "object"
       },
@@ -2235,7 +2239,7 @@
               "null"
             ]
           },
-          "job_id": {
+          "generation_job_id": {
             "type": "string"
           },
           "matrix_revision": {
@@ -2261,7 +2265,7 @@
           }
         },
         "required": [
-          "job_id",
+          "generation_job_id",
           "project_id",
           "status",
           "request_sha256",
@@ -2352,7 +2356,7 @@
               "null"
             ]
           },
-          "job_id": {
+          "generation_job_id": {
             "type": "string"
           },
           "metadata": {
@@ -2367,7 +2371,7 @@
           }
         },
         "required": [
-          "job_id",
+          "generation_job_id",
           "status",
           "draft_id",
           "metadata"
@@ -2767,7 +2771,7 @@
       "TestPlanGenerationSubmittedResponse": {
         "additionalProperties": false,
         "properties": {
-          "job_id": {
+          "generation_job_id": {
             "type": "string"
           },
           "matrix_revision": {
@@ -2784,7 +2788,7 @@
           }
         },
         "required": [
-          "job_id",
+          "generation_job_id",
           "project_id",
           "status",
           "request_sha256",

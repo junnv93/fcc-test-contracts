@@ -181,20 +181,24 @@ OPERATIONS = {
         request=None,
         response='MeasurementJobList',
         permission=PERMISSIONS['list_measurement_jobs'],
+        feature='measurement-jobs',
     ),
     'get_measurement_job': _operation(
         request=None,
         response='MeasurementJobSnapshot',
         permission=PERMISSIONS['get_measurement_job'],
+        feature='measurement-jobs',
     ),
     'submit_measurement_job': _operation(
         request='SubmitMeasurementJobRequest',
         response='MeasurementJobSubmitted',
         permission=PERMISSIONS['submit_measurement_job'],
+        feature='measurement-jobs',
     ),
     'stop_measurement_job': _operation(
         request='StopMeasurementJobRequest',
         response='StopMeasurementJobResponse',
         permission=PERMISSIONS['stop_measurement_job'],
+        feature='measurement-jobs',
     ),
 }

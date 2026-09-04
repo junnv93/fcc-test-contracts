@@ -57,7 +57,21 @@ SCHEMAS = {
     },
     'HeadlessBackendStatusSnapshot': {
         'type': 'object',
-        'required': ['measurement_jobs', 'workers', 'report_automation'],
+        # ⚠️ ``report_automation`` is OPTIONAL (2026-09-05). This operation is
+        # core — every provider must answer it, because without it central
+        # cannot ask what the backend is doing — but the report-automation
+        # queue is a feature a provider may not have at all.
+        #
+        # While the field was required, a provider without that queue had to
+        # send one anyway, and KC sent five zeros. Those zeros then meant two
+        # different things — "the queue is empty" and "there is no such queue" —
+        # with nothing on the wire to tell them apart. That is the defect class
+        # this repository has named repeatedly: absence and a legitimate value
+        # sharing one representation.
+        #
+        # Optional restores the distinction: absent means no such queue, present
+        # means a queue that currently holds these counts.
+        'required': ['measurement_jobs', 'workers'],
         'properties': {
             'measurement_jobs': {'$ref': '#/schemas/MeasurementJobStatusSummary'},
             'workers': {
@@ -115,6 +129,7 @@ SCHEMAS = {
             'routes',
             'operations',
             'schemas',
+            'features',
         ],
         'properties': {
             'version': {'type': 'string'},
@@ -123,6 +138,7 @@ SCHEMAS = {
             'routes': {'type': 'object'},
             'operations': {'type': 'object'},
             'schemas': {'type': 'object'},
+            'features': {'type': 'object'},
         },
         'additionalProperties': False,
     },
@@ -144,15 +160,18 @@ OPERATIONS = {
         request=None,
         response='HealthCheckResponse',
         permission=PERMISSIONS['health_check'],
+        feature='core',
     ),
     'headless_status': _operation(
         request=None,
         response='HeadlessBackendStatusSnapshot',
         permission=PERMISSIONS['headless_status'],
+        feature='core',
     ),
     'headless_api_contract': _operation(
         request=None,
         response='ApiContractDocument',
         permission=PERMISSIONS['headless_api_contract'],
+        feature='core',
     ),
 }

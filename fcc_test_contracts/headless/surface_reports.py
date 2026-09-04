@@ -364,6 +364,7 @@ OPERATIONS = {
         request=None,
         response='ReportPreflightSummary',
         permission=PERMISSIONS['get_report_preflight'],
+        feature='report-automation',
         query_params=[
             {
                 'name': 'session_id',
@@ -379,21 +380,25 @@ OPERATIONS = {
         request=None,
         response='ReportRequestSnapshot',
         permission=PERMISSIONS['get_report_request'],
+        feature='report-automation',
     ),
     'list_report_outputs': _operation(
         request=None,
         response='ReportOutputMetadataList',
         permission=PERMISSIONS['list_report_outputs'],
+        feature='report-automation',
     ),
     'create_report_output_download': _operation(
         request='CreateReportOutputDownloadRequest',
         response='ReportOutputDownloadGrant',
         permission=PERMISSIONS['create_report_output_download'],
+        feature='report-automation',
     ),
     'stream_report_output_download': _operation(
         request=None,
         response='',
         permission=PERMISSIONS['stream_report_output_download'],
+        feature='report-automation',
         query_params=[
             {
                 'name': 'token',
@@ -417,10 +422,12 @@ OPERATIONS = {
         request=None,
         response='ReportAutomationQueueStats',
         permission=PERMISSIONS['report_automation_stats'],
+        feature='report-automation',
     ),
     'cancel_report_automation_request': _operation(
         request='CancelReportAutomationRequest',
         response='CancelReportAutomationResponse',
         permission=PERMISSIONS['cancel_report_automation_request'],
+        feature='report-automation',
     ),
 }
