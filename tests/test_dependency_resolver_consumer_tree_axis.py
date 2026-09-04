@@ -79,13 +79,29 @@ class TestInstalledLocationDiscriminator(unittest.TestCase):
 class TestConsumerProjectDoesNotAnswerForThisLane(unittest.TestCase):
     """⚠️ 재현 그 자체. 이 검사가 없으면 수리가 조용히 되돌려진다."""
 
+    #: ⚠️ **마커 둘 다 재야 한다.** `_tree_root` 폴백은 ``.git`` **또는**
+    #: ``pyproject.toml`` 을 본다. 이 검사의 초판은 ``pyproject.toml`` 만 뒀는데,
+    #: 실제로 걸린 provider 레포에는 ``pyproject.toml`` 이 **없고 ``.git`` 만
+    #: 있었다**(KC 실측 2026-09-04). 좁은 마커 하나만 재면 수리가 되돌려질 때
+    #: ``.git`` 경로가 조용히 통과한다 — 조건은 「레포 안에 venv 를 둔 프로젝트」가
+    #: 아니라 **「레포 안에 venv 를 둔 git 체크아웃 전부」**로 더 헐겁다.
+    CONSUMER_MARKERS = ('pyproject.toml', '.git')
+
     def test_a_venv_inside_a_consumer_project_does_not_resolve_under_the_consumer(self):
+        for marker in self.CONSUMER_MARKERS:
+            with self.subTest(marker=marker):
+                self._probe_consumer_shape(marker)
+
+    def _probe_consumer_shape(self, marker: str):
         with tempfile.TemporaryDirectory() as tmp:
             consumer = Path(tmp) / 'consumer'
             consumer.mkdir()
             # 소비자의 마커. 이것 하나가 옛 폴백을 오답으로 이끌었다.
-            (consumer / 'pyproject.toml').write_text(
-                '[project]\nname = "consumer"\nversion = "0.0.0"\n', encoding='utf-8')
+            if marker == '.git':
+                (consumer / '.git').mkdir()
+            else:
+                (consumer / marker).write_text(
+                    '[project]\nname = "consumer"\nversion = "0.0.0"\n', encoding='utf-8')
             venv.create(consumer / 'venv', with_pip=True)
             python = consumer / 'venv' / 'bin' / 'python'
             if not python.is_file():                        # pragma: no cover
