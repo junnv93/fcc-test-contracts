@@ -107,6 +107,25 @@ they are:
 O-7 is the one that gates the others: the platform cannot render your rows
 until your contract declares them.
 
+### ⚠️ O-5 — `condition_hash` is **yours**, and the centre never recomputes it
+
+Measured 2026-09-04 across the central lane: nothing in `fcc-test-platform` or
+`fcc-test-contracts` computes `condition_hash`. It appears in five contract
+schemas (`MeasurementAttemptEnvelope`, `PublishedTestPlanRowView`,
+`TestPlanGenerationRowView`, `TestPlanGenerationSampleRow`, `ValidationIssueView`)
+as a field the centre **carries**, never as one it derives.
+
+That is the contract, stated here because the schemas do not say it: **the
+producer of this value is the provider, and recomputing it centrally would be a
+migration, not an implementation detail.** A provider whose row identity includes
+non-ASCII values (a temperature step named in Korean, say) must be free to choose
+its own serialisation — and a central recomputation using different JSON encoding
+options would silently break every history join that value was holding together.
+
+If you are that provider: pin the encoding decision inside the hashed value
+itself (a scheme tag such as `…-condition-v1`) so that changing it is visibly a
+migration rather than a silent divergence.
+
 ## 6. Open questions you should know about before you plan
 
 - **Node-to-central runtime.** Standing up a chamber node needs the outbox,
