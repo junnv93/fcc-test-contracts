@@ -38,7 +38,7 @@ name = "fcc-test-kernel"
 #          레인이 아닌 이유다** — ADR-0010 D-8 은 계약 레인의 provider 어휘를
 #          금지하지만 커널은 접두사로 충돌만 없애므로 어휘를 묻지 않는다
 #          (fcc-test-platform ADR-0001 §그리고 9개를 분류할 필요가 없다).
-version = "0.4.0"
+version = "0.5.0"
 description = "Prefixed shared kernel for the FCC lanes — logging and notification primitives that both the central platform and the provider runtime reach."
 # requires-python = 두 소비 레인의 런타임 베이스(`python:3.11-slim`)에서 파생.
 requires-python = ">=3.11"
