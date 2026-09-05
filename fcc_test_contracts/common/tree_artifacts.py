@@ -35,6 +35,7 @@ __all__ = [
     'discover_tree_artifact',
     'operating_repository_root',
     'resolve_dependency_artifact',
+    'resolve_operating_artifact',
     'resolve_repo_artifact',
 ]
 
@@ -188,10 +189,52 @@ def resolve_repo_artifact(anchor_file: str | Path, rel_path: str) -> Path:
     naming it, which is strictly more informative than this function inventing
     a location for a file the box does not contain.
     """
+    return _resolve_under(
+        _tree_root(Path(anchor_file).resolve()), rel_path, 'resolve_repo_artifact',
+    )
+
+
+def resolve_operating_artifact(rel_path: str) -> Path:
+    """Where ``rel_path`` lives in the repository being **operated on**.
+
+    The third question this module answers, and it is not a variant of the
+    other two. :func:`resolve_repo_artifact` asks *where did my own tree put
+    this* and :func:`resolve_dependency_artifact` asks *where did the tree that
+    delivered me put this*; both derive from a module's location. A tool that
+    reads one repository while living in another needs neither — see
+    :func:`operating_repository_root` for why the extraction tooling counts
+    files on the tree it is pointed at rather than the tree it was installed
+    from.
+
+    ⚠️ Anchoring such a tool on its own ``__file__`` is wrong in a way that
+    looks right, which is why it survived. Installed inside a consumer's
+    checkout the module sits under ``<consumer>/venv/lib/.../site-packages``,
+    so :func:`_tree_root` walks *out of the virtualenv* and finds the
+    consumer's own ``pyproject.toml`` — and then answers with the consumer's
+    path, which is the correct answer by accident, for the wrong reason. Move
+    the same install one directory outside any checkout and the identical call
+    walks to the filesystem root and answers ``/docs/api/...``. Measured
+    2026-09-05: the same commit, two rigs, two different failures, and only one
+    of them visible to anyone running the tool from inside the monorepo.
+
+    The relocation record is still consulted, so a delivered box that was asked
+    to operate on itself resolves through what its packager actually wrote.
+    """
+    return _resolve_under(
+        operating_repository_root(), rel_path, 'resolve_operating_artifact',
+    )
+
+
+def _resolve_under(root: Path, rel_path: str, caller: str) -> Path:
+    """``rel_path`` under ``root``, through ``root``'s relocation record if it has one.
+
+    The join is shared rather than spelled once per question because *which
+    tree* and *where in a tree* are separate decisions: each public resolver
+    answers the first, and there is only ever one answer to the second.
+    """
     rel = str(rel_path).replace('\\', '/').strip('/')
     if not rel:
-        raise ValueError('resolve_repo_artifact() requires a repository-relative path')
-    root = _tree_root(Path(anchor_file).resolve())
+        raise ValueError(f'{caller}() requires a repository-relative path')
     record = _layout_record(root)
     if not record:
         return root.joinpath(*rel.split('/'))

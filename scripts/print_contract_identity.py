@@ -29,7 +29,11 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
+# The sibling entry points live next to this one and are not an importable
+# package in the delivered box — see ``scripts/contract_cli.py``.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from contract_cli import read_declared_features  # noqa: E402
 from fcc_test_contracts.common.tree_artifacts import resolve_repo_artifact  # noqa: E402
 from fcc_test_contracts.headless.contract_identity import (  # noqa: E402
     FeatureScopeError,
@@ -50,11 +54,11 @@ def main(argv: list[str] | None = None) -> int:
                 'error': {'code': 'features_missing_value'},
             }, indent=2, sort_keys=True), file=sys.stderr)
             return 2
-        raw = args[index + 1]
-        if raw == '-':
-            raw = sys.stdin.read()
-        declared = [token.strip() for token in raw.replace('\n', ',').split(',')]
-        declared = [token for token in declared if token]
+        # ⚠️ One parser for the declaration, shared with the checker CLI: a
+        # provider pastes the same list into both commands, and two spellings
+        # of "split on commas" is how the digest and the check would come to
+        # disagree about a scope neither of them mis-stated.
+        declared = read_declared_features(args[index + 1])
         del args[index:index + 2]
     path = Path(args[0]) if args else DEFAULT_CONTRACT
     if not path.is_absolute():

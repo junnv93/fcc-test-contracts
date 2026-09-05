@@ -91,6 +91,22 @@ def build_parser(*, prog: str, description: str) -> argparse.ArgumentParser:
     return argparse.ArgumentParser(prog=prog, description=description)
 
 
+def read_declared_features(raw: str) -> list[str]:
+    """``--features`` as the shipped CLIs accept it, including ``-`` for stdin.
+
+    Only the *source* of the text is decided here; the format itself is
+    :func:`fcc_test_contracts.headless.contract_identity.parse_declared_features`,
+    which lives in the package because that is the copy a wheel consumer
+    receives. Reading stdin is a command-line concern and stays here.
+
+    Imported inside the function for the reason every other package import in
+    these entry points is: :func:`ensure_importable` must have run first.
+    """
+    from fcc_test_contracts.headless.contract_identity import parse_declared_features
+
+    return parse_declared_features(sys.stdin.read() if raw == '-' else raw)
+
+
 def load_contract(raw_path: str) -> dict:
     """Read a contract JSON, resolving a relative path against the working directory.
 

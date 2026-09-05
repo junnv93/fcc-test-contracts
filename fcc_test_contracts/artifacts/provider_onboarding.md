@@ -2,7 +2,7 @@
 
 This file ships **inside** `fcc-test-contracts`. If you are reading it from the
 package you received, everything below is runnable from the directory this file
-sits in (`artifacts/provider_onboarding.md` → run from the package root).
+sits in (`fcc_test_contracts/artifacts/provider_onboarding.md` → run from the package root).
 
 > **Why this is commands and not prose.** Under ADR-0018 D-5 the provider
 > repositories stay private, so there is no reference implementation to copy.
@@ -21,7 +21,7 @@ away from the software.
 ```
 fcc-test-contracts/
   fcc_test_contracts/      the importable package (contract DTOs, checker, web primitives)
-  artifacts/               OpenAPI + AsyncAPI documents, the contract SSOT, example contracts
+  fcc_test_contracts/artifacts/  OpenAPI + AsyncAPI documents, the contract SSOT, example contracts
   packages/api-artifacts/  the same artifacts as an npm package, for your frontend
   scripts/                 entry points you run — including the compatibility checker
 ```
@@ -32,9 +32,9 @@ fcc-test-contracts/
 ```console
 $ python3 scripts/check_headless_api_contract.py --help
 # exit: 0
-$ python3 scripts/check_headless_api_contract.py artifacts/mmwave_headless_api_contract.example.json
+$ python3 scripts/check_headless_api_contract.py fcc_test_contracts/artifacts/mmwave_headless_api_contract.example.json
 # exit: 0
-$ python3 scripts/check_headless_api_contracts_batch.py artifacts/mmwave_headless_api_contract.example.json artifacts/licensed_headless_api_contract.example.json
+$ python3 scripts/check_headless_api_contracts_batch.py fcc_test_contracts/artifacts/mmwave_headless_api_contract.example.json fcc_test_contracts/artifacts/licensed_headless_api_contract.example.json
 # exit: 0
 ```
 
@@ -50,11 +50,11 @@ decide for yourself; wire the exit code into your CI.
 ## 2. Start from an example, not from the schema
 
 ```console
-$ cp artifacts/mmwave_headless_api_contract.example.json my_contract.json
+$ cp fcc_test_contracts/artifacts/mmwave_headless_api_contract.example.json my_contract.json
 ```
 
 Then edit `provider.id`, `provider.display_name`, and the operations your
-headless actually serves. `artifacts/headless_api_contract.v1.json` is the SSOT
+headless actually serves. `fcc_test_contracts/artifacts/headless_api_contract.v1.json` is the SSOT
 your contract is compared against — read it, do not copy it: it describes every
 operation, and you declare the subset you serve.
 
@@ -73,6 +73,12 @@ operations you have declared live, which is what you want while you are still
 building: it lets you go green on the part you serve without pretending to serve
 the rest.
 
+⚠️ **`live-subset` is a building aid and never a conformance answer.** It is
+green on a subset nobody defined, which is exactly why §7 refuses it: evidence
+carrying `checker.mode = "live-subset"` is rejected by name. When you are ready
+to report, §7.2 gives the mode that counts — the same checker, judging you in
+full against the scope you declare.
+
 ## 4. Consume the artifacts from your frontend
 
 ```console
@@ -81,7 +87,7 @@ $ cd packages/api-artifacts && npm pack --dry-run
 
 `manifest.json` in that package is the single artifact SSOT — it declares which
 files belong, their kind, and whether codegen consumes them. Generate your
-client types from `artifacts/*.openapi.json`; do not hand-write them, and do not
+client types from `fcc_test_contracts/artifacts/*.openapi.json`; do not hand-write them, and do not
 re-derive server-computed values on the client.
 
 ## 5. What you build, and what you never receive
@@ -146,7 +152,7 @@ section says what happens to that verification once it passes.
 **You never send your contract artifact.** Operator ruling 2026-08-31 (option
 「나」): the artifact stays with its publisher and the centre receives only the
 result. You send a **conformance evidence document**, shaped by
-`artifacts/provider_contract_conformance_evidence.schema.v2.json`.
+`fcc_test_contracts/artifacts/provider_contract_conformance_evidence.schema.v2.json`.
 
 ⚠️ **You are not required to serve the whole contract.** Until 2026-09-05 you
 were: the only judgement available was *"serves all 40 operations"*, so a
@@ -298,6 +304,53 @@ checked. The digest moves when the contract moves; the version did not.
 was rejected as a conformance basis precisely because nobody had defined which
 subset is legal, and sending it here re-admits the rejection. `full` is still
 correct if you declare every feature.
+
+**`result` is not hand-written.** It is the checker's own output, run in that
+mode, on the contract you authored in §3:
+
+<!-- onboarding-commands: evidence -->
+```console
+$ python3 scripts/check_headless_api_contract.py --mode declared-features --features measurement-jobs my_contract.json
+# exit: 0
+$ python3 scripts/check_headless_api_contract.py --mode declared-features --features '' my_contract.json
+# exit: 0
+$ python3 scripts/check_headless_api_contract.py --mode declared-features my_contract.json
+# exit: 2
+```
+
+The first command is the one you ship: `--features` takes your §7.0 declaration
+(comma-separated, or `-` to read it on stdin), and the JSON it prints on exit 0
+is `{"compatible": true, "issues": [], "warnings": [...]}` — copy `compatible`
+and `issues` into `result` verbatim. `warnings` are not part of the evidence:
+a version difference is a warning and it is not a conformance failure.
+
+The second is the smallest legal declaration, not an empty one — required
+features are in scope whether you name them or not, so `--features ''` means
+*"core only"* and it is a real answer.
+
+The third is there so you can see the refusal rather than meet it on your first
+run: **the mode and the declaration cannot be separated.** `--mode
+declared-features` without `--features` is exit 2 (`features_mode_mismatch`),
+and so is `--features` in any other mode. Exit 2 is *you asked wrongly*; it is
+never a statement about your contract.
+
+⚠️ A feature id this contract does not declare is exit **1**, not 2, and prints
+`unknown_declared_feature` in `issues`. That is deliberate: an undeclarable
+scope is the `evidence unscoped` red of §7.3 — a result the centre records —
+not a typo in a command line. Run §7.0 to see the ids you may declare.
+
+⚠️ **`scripts/` does not travel inside the wheel** (§7.1 says why). If you
+pinned this lane with `pip install git+…`, the same judgement is one import
+away:
+
+```python
+from fcc_test_contracts.headless.api_contract_checker import check_api_contract_compatibility
+
+result = check_api_contract_compatibility(
+    my_contract, mode='declared-features', declared_features=['measurement-jobs'],
+)
+result.to_dict()          # {'compatible': ..., 'issues': [...], 'warnings': [...]}
+```
 
 `subject.digest` is the identity of the artifact **you derived from your own
 implementation** — the same command in §7.1 accepts a path, so run it on your

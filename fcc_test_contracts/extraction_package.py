@@ -44,16 +44,15 @@ import shutil
 import subprocess
 import sys
 from fcc_test_contracts.common.tree_artifacts import (  # noqa: E402
-    LAYOUT_RECORD_NAME, PACKAGE_LAYOUT_RECORD_NAME, resolve_repo_artifact,
+    LAYOUT_RECORD_NAME, PACKAGE_LAYOUT_RECORD_NAME, resolve_operating_artifact,
 )
 from fcc_test_contracts.common.extraction_lane_policy import (  # noqa: E402
     CONSUMED_BASIS_DELIVERY,
     LANE_TEST_SUITE_KIND as _LANE_TEST_SUITE_KIND,
     SHARED_KERNEL_CLOSURE_KIND as _SHARED_KERNEL_CLOSURE_KIND,
 )
-DEFAULT_MANIFEST = resolve_repo_artifact(
-    __file__, 'docs/api/headless_contract_extraction_manifest.v1.json',
-)
+#: 매니페스트의 저장소-상대 이름. **다루는 저장소** 위에서 해소된다.
+MANIFEST_REPO_PATH = 'docs/api/headless_contract_extraction_manifest.v1.json'
 PYTHON_RELOCATION_KINDS = ('python_module', 'python_package')
 LANE_TEST_SUITE_KIND = _LANE_TEST_SUITE_KIND
 SHARED_KERNEL_CLOSURE_KIND = _SHARED_KERNEL_CLOSURE_KIND
@@ -80,7 +79,25 @@ def __getattr__(name: str):
         return _project_root()
     if name == 'SRC_ROOT':
         return _project_root() / 'src'
+    if name == 'DEFAULT_MANIFEST':
+        return _default_manifest()
     raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
+
+# ⚠️ **`__file__` 에 매달면 안 된다** — `PROJECT_ROOT` 와 **같은 질문**이기
+# 때문이다. 매니페스트는 「이 모듈이 어느 배포판에서 왔나」가 아니라 「지금 어느
+# 저장소를 포장하나」를 서술한다. 옛 형태 `resolve_repo_artifact(__file__, …)` 는
+# 설치본이 «읽으려는 체크아웃 안에» 있는 동안만 맞았다: `<repo>/fcc_test_env/…/
+# site-packages` 에서 조상 걷기가 virtualenv 를 빠져나와 `<repo>` 에 닿아 **우연히**
+# 정답을 냈고, 체크아웃 밖 virtualenv 에서는 같은 호출이 `/` 까지 걸어가
+# `/docs/api/…` 를 냈다. 2026-09-05 양쪽 rig 실측.
+#
+# ⚠️ **그리고 지연이라야 한다** — 위 `_project_root` 주석과 같은 사유다.
+# `operating_repository_root` 는 다룰 저장소가 없으면 «추측하지 않고 거부»하므로,
+# 모듈 상수로 두면 그 거부가 「이 라이브러리는 import 조차 안 된다」가 된다.
+@functools.cache
+def _default_manifest() -> Path:
+    return resolve_operating_artifact(MANIFEST_REPO_PATH)
 
 
 def _lane_policy(manifest: dict):
@@ -94,9 +111,10 @@ def _lane_policy(manifest: dict):
     return ExtractionLanePolicy.from_manifest(manifest)
 def build_extraction_plan(
     *,
-    manifest_path: Path = DEFAULT_MANIFEST,
+    manifest_path: Path | None = None,
     repository: str | None = None,
 ) -> dict:
+    manifest_path = manifest_path or _default_manifest()
     manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
     repositories = manifest['repositories']
     selected_names = [repository] if repository else list(repositories)
@@ -908,7 +926,7 @@ def _relative(path: Path) -> str:
         return str(path)
 def _issue(code: str, path: str, message: str) -> dict:
     return {'code': code, 'path': path, 'message': message}
-def _lane_choices(manifest_path: Path = DEFAULT_MANIFEST) -> list[str]:
+def _lane_choices(manifest_path: Path | None = None) -> list[str]:
     """Lane names the manifest declares, for ``--repo``.
 
     Mirrors ``check_extraction_import_boundaries.lane_choices`` rather than
@@ -917,16 +935,49 @@ def _lane_choices(manifest_path: Path = DEFAULT_MANIFEST) -> list[str]:
     """
     from fcc_test_contracts.common.extraction_lane_policy import ExtractionLanePolicy
 
-    return sorted(ExtractionLanePolicy.from_path(manifest_path).lanes)
+    return sorted(ExtractionLanePolicy.from_path(manifest_path or _default_manifest()).lanes)
+
+
+class _LaneChoices:
+    """``--repo`` 가 받는 값 — argparse 가 **물을 때** 매니페스트에서 파생한다.
+
+    파생은 그대로다(하드코딩한 세 쌍은 여전히 금지). 바뀐 것은 **시점**이다.
+    옛 형태는 파서를 «만드는 도중에» 매니페스트를 읽었고, 그래서 매니페스트를
+    못 찾으면 `--help` 조차 `add_argument` 안쪽에서 `FileNotFoundError` 로
+    죽었다 — argparse 를 가리키는 트레이스백인데 argparse 의 잘못도 사용자의
+    잘못도 아니다. 실패가 엉뚱한 자리에서 난다. 2026-09-05 휠 설치본 실측:
+    `main(['--help'])` 가 사용법 대신 예외를 냈다.
+
+    `--help` 는 **이 CLI 에 대한 물음**이지 어느 저장소에 대한 물음이 아니다.
+    반대로 `--repo <값>` 은 레인에 대한 물음이므로, 그때는 매니페스트를 읽고
+    못 읽으면 그 자리에서 실패하는 것이 맞다.
+
+    ⚠️ `metavar` 를 함께 주는 것이 요점의 절반이다. argparse 는 `metavar` 가
+    없으면 사용법 줄을 만들려고 `choices` 를 **순회**하므로, 지연 컨테이너만
+    두고 `metavar` 를 빼면 `--help` 가 다시 같은 자리에서 죽는다.
+    """
+
+    def __init__(self, manifest_path: Path | None = None) -> None:
+        self._manifest_path = manifest_path
+
+    @functools.cached_property
+    def _values(self) -> list[str]:
+        return _lane_choices(self._manifest_path)
+
+    def __contains__(self, value: object) -> bool:
+        return value in self._values
+
+    def __iter__(self):
+        return iter(self._values)
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='Validate and stage headless extraction packages.')
-    parser.add_argument('--manifest', type=Path, default=DEFAULT_MANIFEST)
+    parser.add_argument('--manifest', type=Path, default=None)
     # Lane choices are **derived**, never typed here. A hardcoded triple is the
     # shape "Extraction Lane Set = Manifest 파생 SSOT" already outlawed in the
     # runner and its operator hints; this was the fourth copy, and it silently
     # refused `fcc-chamber-node` from the day that lane was declared. The
     # sibling checker script reads the same answer from the same policy.
-    parser.add_argument('--repo', choices=_lane_choices(DEFAULT_MANIFEST))
+    parser.add_argument('--repo', choices=_LaneChoices(), metavar='LANE')
     parser.add_argument('--copy-to', type=Path, help='optional staging root; files are copied under <root>/<repo>/')
     parser.add_argument('--output', type=Path, help='optional JSON plan output path')
     args = parser.parse_args(argv)
