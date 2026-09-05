@@ -32,9 +32,15 @@ from fcc_test_contracts.common.supply_closure import (
     ResourceClosure,
     SupplyClosure,
     WheelBuildUnavailable,
+    conventional_import_names,
+    convention_misattributions,
+    discover_distributions,
+    is_virtual_environment,
+    iter_source_files,
     missing_resource_report,
     normalize,
     requirement_name,
+    requirements_declarations,
     unguarded_imports,
 )
 
@@ -233,6 +239,257 @@ class TestTheClosureJudgementItself(unittest.TestCase):
             probe = Path(directory) / 'probe.py'
             probe.write_text(source, encoding='utf-8')
             return {site.module for site in unguarded_imports(probe)}
+
+
+class TestWhatCountsAsSource(unittest.TestCase):
+    """비-소스를 **이름이 아니라 성질**로 가르는가.
+
+    ⚠️ 이 봉인이 없으면 다음 저장소가 가상환경을 다른 이름으로 부르는 순간 이 게이트가
+    거기 설치된 배포판을 **이 저장소가 내는 것**으로 읽는다. 실측 2026-09-05: 원본
+    모노레포는 가상환경을 `fcc_test_env/` 로 부르고 저장소 안에 두며, 그 안의
+    `pandas/pyproject.toml` 이 `[project]` 을 갖는다.
+    """
+
+    def test_a_directory_with_pyvenv_cfg_is_a_virtual_environment(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            venv = root / 'any_name_at_all'
+            venv.mkdir()
+            self.assertFalse(is_virtual_environment(venv), '아직 표지가 없다')
+            (venv / 'pyvenv.cfg').write_text('home = /usr\n', encoding='utf-8')
+            self.assertTrue(
+                is_virtual_environment(venv),
+                'PEP 405 는 가상환경을 pyvenv.cfg 로 정의한다 — 이름이 아니다.',
+            )
+
+    def test_a_pyproject_inside_a_virtual_environment_is_not_this_repository(self):
+        """설치된 배포판의 `pyproject.toml` 을 우리 것으로 세지 않는다."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'pyproject.toml').write_text(
+                '[project]\nname = "mine"\nversion = "0"\n', encoding='utf-8',
+            )
+            venv = root / 'runtime_env'
+            (venv / 'lib' / 'site-packages' / 'somelib').mkdir(parents=True)
+            (venv / 'pyvenv.cfg').write_text('home = /usr\n', encoding='utf-8')
+            (venv / 'lib' / 'site-packages' / 'somelib' / 'pyproject.toml').write_text(
+                '[project]\nname = "somelib"\nversion = "9"\n', encoding='utf-8',
+            )
+            observed = {d.name for d in discover_distributions(root)}
+            self.assertEqual(
+                observed, {'mine'},
+                '가상환경 안의 배포판을 이 저장소가 내는 것으로 읽었다.',
+            )
+
+    def test_the_walker_prunes_instead_of_filtering_after_the_fact(self):
+        """가지치기가 실제로 **들어가지 않는지** 본다 — 걸러내기와 구별되는 성질이다."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'kept.py').write_text('', encoding='utf-8')
+            for name in ('node_modules', '__pycache__', 'build'):
+                (root / name).mkdir()
+                (root / name / 'dropped.py').write_text('', encoding='utf-8')
+            venv = root / 'env'
+            venv.mkdir()
+            (venv / 'pyvenv.cfg').write_text('home = /usr\n', encoding='utf-8')
+            (venv / 'dropped.py').write_text('', encoding='utf-8')
+            observed = {path.name for path in iter_source_files(root)}
+            self.assertEqual(observed, {'kept.py'})
+
+
+class TestTheDeclarationSourceIsDerived(unittest.TestCase):
+    """선언 출처가 **파생**인가 — `[project]` 이 있으면 그것, 없으면 `requirements*.txt`.
+
+    ⚠️ 이 봉인이 이 파일에 있는 이유: 이 레인에는 `[project]` 이 **있어서** 그 대체
+    경로가 여기서는 절대 실행되지 않는다. 봉인하지 않으면 그 경로는 소비 저장소에서
+    처음 돌고, 거기서 틀리면 **배포판 0개**로 조용히 초록이 된다(실측 2026-09-05:
+    원본 모노레포에서 정확히 그 상태였다).
+    """
+
+    def _repo(self, directory: str, **files: str) -> Path:
+        root = Path(directory)
+        for name, text in files.items():
+            path = root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding='utf-8')
+        return root
+
+    def test_pyproject_wins_when_it_declares_a_project(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repo(
+                directory,
+                **{
+                    'pyproject.toml': '[project]\nname = "boxed"\nversion = "0"\n'
+                                      'dependencies = ["one"]\n',
+                    'requirements.txt': 'two\n',
+                },
+            )
+            (distribution,) = discover_distributions(root)
+            self.assertEqual(distribution.name, 'boxed')
+            self.assertEqual(distribution.declared, {'one'})
+            self.assertFalse(distribution.whole_tree)
+            self.assertTrue(distribution.is_installable)
+
+    def test_requirements_take_over_when_pyproject_declares_no_project(self):
+        """도구 설정만 있는 `pyproject.toml` 은 선언이 아니다 — 실측된 형상이다."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repo(
+                directory,
+                **{
+                    'pyproject.toml': '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n',
+                    'requirements.txt': 'alpha>=1.0   # 주석\n',
+                    'requirements-node.txt': '-r requirements.txt\nbeta[extra]>=2\n',
+                },
+            )
+            (distribution,) = discover_distributions(root)
+            self.assertTrue(distribution.whole_tree)
+            self.assertFalse(
+                distribution.is_installable,
+                'requirements 는 설치 목록이지 배포 선언이 아니다 — 휠을 낼 수 없다.',
+            )
+            self.assertEqual(distribution.declared, {'alpha', 'beta'})
+
+    def test_an_include_is_followed_so_the_gate_does_not_invent_a_defect(self):
+        """`-r` 너머의 선언을 못 보면 이 게이트가 **없는 결함**을 보고한다."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repo(
+                directory,
+                **{
+                    'requirements.txt': 'alpha\n',
+                    'requirements-web.txt': '-r requirements.txt\ngamma\n',
+                },
+            )
+            declarations = requirements_declarations(root)
+            self.assertEqual(
+                declarations[root / 'requirements-web.txt'], {'alpha', 'gamma'},
+            )
+
+    def test_each_list_is_kept_apart_before_it_is_unioned(self):
+        """넷을 합치기 **전의** 값이 남아야 레인별 축이 나중에 성립할 수 있다."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repo(
+                directory,
+                **{
+                    'requirements.txt': 'shared\n',
+                    'requirements-central.txt': 'shared\ncentral-only\n',
+                },
+            )
+            (distribution,) = discover_distributions(root)
+            self.assertEqual(
+                dict(distribution.declared_by),
+                {
+                    'requirements-central.txt': frozenset({'shared', 'central-only'}),
+                    'requirements.txt': frozenset({'shared'}),
+                },
+            )
+            self.assertEqual(
+                distribution.sources_declaring('central-only'),
+                ('requirements-central.txt',),
+                '어느 목록이 그것을 선언했는지 말할 수 있어야 처방이 성립한다.',
+            )
+
+    def test_a_url_fragment_is_not_a_comment(self):
+        """PEP 508 direct reference 의 `#subdirectory=` 를 주석으로 자르면 안 된다."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = self._repo(
+                directory,
+                **{
+                    'requirements.txt':
+                        'kern @ git+https://example.invalid/x@v1#subdirectory=packages/kern\n',
+                },
+            )
+            (distribution,) = discover_distributions(root)
+            self.assertEqual(distribution.declared, {'kern'})
+
+    def test_a_repository_with_no_declaration_at_all_yields_nothing(self):
+        """⚠️ 빈 튜플은 「위반 없음」이 아니다 — 부르는 쪽이 그것을 막아야 한다."""
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertEqual(discover_distributions(Path(directory)), ())
+
+
+class TestTheNameConventionIsARuleNotATable(unittest.TestCase):
+    """설치 없이 배포판 이름에서 import 이름을 알아내는 **세 번째 경로**.
+
+    ⚠️ 왜 필요한가 (실측 2026-09-05, 원본 모노레포): `Appium-Python-Client` 와
+    `python-docx` 는 선언돼 있지만 **챔버 레인의 것**이라 중앙 러너에 깔리지 않고,
+    이름도 달라 문자열 대조도 실패한다. 그러면 선언을 지키고 있는 저장소가 red 가
+    되고, 더 나쁘게는 **이 게이트의 답이 러너에 무엇이 깔렸는지에 따라 달라진다**.
+    규약 경로를 끄고 재면 계급 B 가 5 → 7 로 늘고 그 둘이 정확히 그 이름이다.
+    """
+
+    def test_the_measured_conventions_hold(self):
+        cases = {
+            'python-docx': 'docx',
+            'PyYAML': 'yaml',
+            'PyJWT': 'jwt',
+            'Appium-Python-Client': 'appium',
+            'python-multipart': 'multipart',
+            'starlette': 'starlette',
+        }
+        for distribution_name, expected in cases.items():
+            with self.subTest(distribution=distribution_name):
+                self.assertIn(expected, conventional_import_names(distribution_name))
+
+    def test_the_rule_does_not_grow_with_our_dependency_list(self):
+        """규약은 **이름의 모양**에 대한 것이지 우리 의존성에 대한 것이 아니다.
+
+        한 번도 본 적 없는 이름에도 같은 규칙이 그대로 적용돼야 한다 — 그렇지 않다면
+        그것은 규약이 아니라 대응표이고, 대응표는 의존성이 늘 때마다 낡는다.
+        """
+        self.assertIn('neverseen', conventional_import_names('python-neverseen'))
+        self.assertIn('neverseen', conventional_import_names('Neverseen-Python-Client'))
+
+    def test_the_convention_never_attributes_a_name_to_the_wrong_distribution(self):
+        """⚠️ 규약을 넓힐 때 드는 값을 **잰다** — 재지 않는 규약은 대응표보다 나쁘다.
+
+        위험한 오예측은 「규약이 D 가 N 을 준다고 했는데 실제로 N 을 주는 것은 다른
+        배포판」인 경우다. 그때 이 게이트는 선언되지 않은 의존을 선언된 것으로 읽고
+        **조용히 통과**시킨다. 이 러너에 설치된 배포판 전량이 관측 가능한 자리다.
+        """
+        from importlib.metadata import distributions as installed_distributions
+        installed = {
+            normalize(dist.metadata['Name'])
+            for dist in installed_distributions()
+            if dist.metadata['Name']
+        }
+        self.assertGreater(
+            len(installed), 5, f'설치된 배포판이 {len(installed)}개뿐이다 — 이 팔은 공허하다',
+        )
+        errors = convention_misattributions(installed)
+        self.assertEqual(
+            errors, [],
+            '규약이 이름을 틀린 배포판에 붙인다 — 그 이름의 import 는 이제 선언 없이도 '
+            '통과한다:\n' + '\n'.join(errors),
+        )
+
+    def test_the_convention_never_overrides_an_installed_answer(self):
+        """설치본이 있으면 그것이 이긴다 — 규약은 답이 **존재하지 않는** 자리에서만 쓰인다.
+
+        이 순서가 뒤집히면 계급 A(= 깔려 있는데 선언에 없다)가 규약에 먹혀 사라진다.
+        """
+        source = SupplyClosure.__init__.__doc__ or ''
+        del source  # 문서가 아니라 동작으로 봉인한다 — 아래가 그 동작이다.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'pyproject.toml').write_text(
+                '[project]\nname = "probe"\nversion = "0"\n'
+                'dependencies = ["python-notinstalled"]\n', encoding='utf-8',
+            )
+            (root / 'tests').mkdir()
+            # `unittest` 는 stdlib 이라 걸리지 않는다. 설치돼 있고 선언에 없는 이름을
+            # 골라야 계급 A 가 성립한다.
+            (root / 'tests' / 'probe.py').write_text(
+                'import pytest\nimport notinstalled\n', encoding='utf-8',
+            )
+            closure = SupplyClosure(root)
+            self.assertEqual(
+                [item.module for item in closure.undeclared], ['pytest'],
+                '설치돼 있고 선언에 없는 이름은 규약과 무관하게 계급 A 여야 한다.',
+            )
+            self.assertEqual(
+                closure.unresolvable_names, set(),
+                '`python-notinstalled` 선언이 규약으로 `notinstalled` 를 해소해야 한다.',
+            )
 
 
 class TestEveryPackageResourceShipsInTheWheel(unittest.TestCase):

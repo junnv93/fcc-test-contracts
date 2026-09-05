@@ -55,12 +55,47 @@
 그래서 이 모듈이 파생하는 단위는 **배포판**이고, 각 배포판은 **자기 선언**에 대고
 판정된다. 상자별 분기가 0 이 된다: 소비 레인은 배포판 1개, 이 레인은 2개일 뿐 규칙은
 하나다. 새 배포판이 생겨도 이 파일은 그대로 맞다.
+
+
+⭐ 2026-09-05 — 원본 모노레포로 올리며 **가정 셋이 깨졌다**
+────────────────────────────────────────────────────────────
+
+두 상자는 이 모듈이 추출된 원본(`FCC_mobile_test_automation`)에서 나왔다. 원본에 이
+축이 없으면 다음 추출이 같은 계급의 결함을 다시 상자로 실어 나르고, 그때는 상자의
+게이트가 **배송 이후에** 그것을 발견한다. 그래서 판정기를 원본에 그대로 대 봤고,
+암묵 가정 셋이 전부 거짓이었다. 셋 다 **조용히** 틀린다 — 그것이 요점이다.
+
+  ① **「한 저장소 = `[project]` 절」** — 원본 `pyproject.toml` 에는 `[tool.pytest]`
+     뿐이고 선언은 `requirements*.txt` 넷에 있다. 그 위에서 이 판정기는 배포판을
+     **0개**로 세고, 0개는 「위반 없음」과 **같은 모양**이다.
+     → 선언 출처를 파생으로 만들었다(`discover_distributions`).
+
+  ② **「가상환경은 `.venv` 라는 이름을 갖는다」** — 원본은 그것을 `fcc_test_env/` 로
+     부르고 **저장소 안에** 둔다. 그 안의 `pandas/pyproject.toml` 은 `[project]` 을
+     가지므로, 이름으로 거르는 판정기는 **pandas 를 이 저장소가 내는 배포판**으로
+     읽는다. 이름 목록은 반드시 낡는다 — 가상환경에는 정의가 있다(PEP 405).
+     → `is_virtual_environment()` · `iter_source_files()`.
+
+  ③ **「이름이 배포판과 다른 것(PyYAML→yaml)은 선언돼 러너에 설치되므로 정확한
+     경로로 판정된다」** — 하드웨어 전용 의존이 많은 저장소에서 거짓이다.
+     `Appium-Python-Client` 와 `python-docx` 는 **챔버 레인**의 것이라 중앙 러너에
+     깔리지 않고, 이름도 달라 문자열 대조도 실패한다. 실측: 그 가정 위에서 계급 B 가
+     러너에 따라 5건과 7건 사이를 오간다 — **같은 커밋에 대해**. 게이트의 답이 러너에
+     의존하면 초록이 무엇을 뜻하는지 말할 수 없다.
+     → `conventional_import_names()` 가 세 번째 경로다. 그리고 그것은 **대응표가
+     아니다** — 손 대응표는 우리 의존성의 이름을 적으므로 의존성이 늘 때마다 낡는다.
+     접사 규약은 PyPI 의 이름 짓기에 대한 것이고 우리 목록과 무관하다.
+     ⚠️ 규약은 틀릴 수 있으므로 **믿지 않고 잰다** — `convention_misattributions()`
+     가 설치돼 있어 진실을 알 수 있는 배포판 전량에 대고 예측을 대조한다.
 """
 from __future__ import annotations
 
 import ast
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
+import fnmatch
 from importlib.metadata import packages_distributions
+import os
 from pathlib import Path
 import re
 import shutil
@@ -86,6 +121,63 @@ _UNSHIPPED_BUT_RUNS = ('tests', 'scripts')
 #: 소스에 있지만 휠에 없어도 되는 것 — 파이썬 자신이 만드는 부산물뿐이다.
 _NOT_A_RESOURCE = frozenset({'.pyc', '.pyo', '.pyd', '.so'})
 
+#: 선언 출처가 `pyproject.toml` 이 아닐 때 그것을 대신하는 파일들.
+#: ⚠️ 목록이 아니라 **글롭**이다 — 다섯 번째 레인이 생기면 이 게이트가 그것을 **본다**.
+#: 나열했다면 늘어난 그것만 조용히 빠졌을 것이고, 그 조용함이 소비 레인의
+#: `test_install_lists_pin_what_each_lane_imports.py` 가 이름 붙인 결함의 기전이다.
+REQUIREMENTS_GLOB = 'requirements*.txt'
+
+#: pip 이 주석으로 읽는 것 — 줄머리이거나 **공백 뒤**의 `#` 부터 끝까지.
+#: ⚠️ 공백 조건이 필요하다. PEP 508 direct reference 의 URL 조각
+#: (`…@kernel-v0.5.0#subdirectory=packages/fcc-test-kernel`) 에도 `#` 이 있고,
+#: 조건 없이 자르면 그 줄이 이름만 남는 것이 아니라 **다른 줄이 된다**.
+_INLINE_COMMENT = re.compile(r'(?:^|\s)#.*$')
+
+#: 다른 목록을 끌어오는 지시자. 따라가지 않으면 include 너머의 선언이 「없는 것」이 되고
+#: 이 게이트가 **실재하지 않는 결함**을 보고한다 — `requirements-web.txt` 가 정확히 그
+#: 형상이다(`-r requirements.txt` 로 스무 줄을 끌어온다).
+_REQUIREMENTS_INCLUDE = re.compile(r'^(?:-r|--requirement)[=\s]+(?P<path>\S+)')
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 무엇이 소스가 **아닌가** — 이름이 아니라 성질로 판정한다
+# ──────────────────────────────────────────────────────────────────────────────
+
+def is_virtual_environment(directory: Path) -> bool:
+    """이 디렉터리가 가상환경인가. PEP 405 가 `pyvenv.cfg` 로 그것을 정의한다.
+
+    ⚠️ **이름으로 걸러서는 안 된다.** `NOT_SOURCE` 는 `.venv` 라는 철자를 알지만
+    소비 레인 하나는 가상환경을 `fcc_test_env/` 로 부르고 **그것을 저장소 안에 둔다**.
+    실측 2026-09-05: 그 트리에서 ``rglob('pyproject.toml')`` 은 설치된 `pandas` 의
+    `pyproject.toml` 을 집어 와 **pandas 를 이 저장소가 내는 배포판으로** 읽는다.
+    그리고 그 오독은 「배포판이 하나 더 있다」와 같은 모양이라 조용하다.
+
+    이름을 하나 더 적는 것은 답이 아니다 — 그것이 이 축이 없애려는 형태다.
+    가상환경에는 **정의가 있고**, 그 정의는 파일 하나의 존재로 판정된다.
+    """
+    return (directory / 'pyvenv.cfg').is_file()
+
+
+def iter_source_files(root: Path, pattern: str = '*.py') -> Iterator[Path]:
+    """`root` 아래의 소스 파일 — 비-소스 디렉터리를 **가지치기하며** 훑는다.
+
+    ⚠️ `rglob` 이 아니라 `os.walk` 인 이유: `rglob` 은 가지치기를 못 한다. 걸러도
+    **들어간 뒤에 버리는 것**이라, `node_modules/` 와 `fcc_test_env/` 를 가진 트리에서
+    비용이 트리 크기가 아니라 **의존성 크기**로 정해진다. 실측 2026-09-05: 소비
+    레인 모노레포는 소스 1,939 파일인데 그 두 디렉터리에 그 몇 배가 있다.
+    """
+    for dirpath, dirnames, filenames in os.walk(root):
+        here = Path(dirpath)
+        dirnames[:] = sorted(
+            name for name in dirnames
+            if name not in NOT_SOURCE
+            and not name.endswith('.egg-info')
+            and not is_virtual_environment(here / name)
+        )
+        for filename in sorted(filenames):
+            if fnmatch.fnmatch(filename, pattern):
+                yield here / filename
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # 이름 정규화 — PEP 503
@@ -108,6 +200,124 @@ def requirement_name(spec: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# 선언 출처 ② — `requirements*.txt`
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _requirement_lines(path: Path, *, seen: set[Path] | None = None) -> Iterator[tuple[Path, str]]:
+    """이 목록이 **실제로** 선언하는 줄 전부 — `-r` 를 따라간 뒤의 것.
+
+    돌려주는 것은 `(그 줄이 실제로 적힌 파일, 줄)` 이다. 어느 파일을 고치라고 말할 수
+    있어야 하기 때문이다 — `requirements-web.txt` 의 선언 대부분은 `requirements.txt`
+    에 적혀 있고, 「web 에 선언하라」는 처방은 거기서 틀린 답이 된다.
+    """
+    seen = set() if seen is None else seen
+    resolved = path.resolve()
+    if resolved in seen or not resolved.is_file():
+        # ⚠️ 순환 include 를 무한 재귀로 만들지 않는다. 그리고 없는 파일을 가리키는
+        #    `-r` 은 이 축의 결함이 아니다 — 설치기가 그것을 먼저 이름 대고 막는다.
+        return
+    seen.add(resolved)
+    for raw in resolved.read_text(encoding='utf-8').splitlines():
+        line = _INLINE_COMMENT.sub('', raw).strip()
+        if not line:
+            continue
+        include = _REQUIREMENTS_INCLUDE.match(line)
+        if include:
+            yield from _requirement_lines(resolved.parent / include.group('path'), seen=seen)
+            continue
+        if line.startswith('-'):
+            # `--index-url` · `--find-links` 같은 설치기 옵션. 배포판 선언이 아니다.
+            continue
+        yield resolved, line
+
+
+def requirements_declarations(repo_root: Path) -> dict[Path, frozenset[str]]:
+    """`requirements*.txt` 각각이 (include 를 따라간 뒤) 선언하는 배포판.
+
+    ⚠️ **파일마다 따로 돌려준다.** 넷을 한 집합으로 합쳐 놓고 시작하면 「중앙에만
+    필요한 것」과 「챔버 노드에도 필요한 것」이 같은 값이 되고, 그러면 *챔버에서만
+    죽는 결함*을 볼 수 있는 축 자체가 사라진다. 합치는 것은 판정하는 쪽의 선택이고,
+    그 선택을 하려면 합치기 **전의** 값이 남아 있어야 한다.
+    """
+    found: dict[Path, frozenset[str]] = {}
+    for path in sorted(iter_source_files(repo_root, REQUIREMENTS_GLOB)):
+        names = {requirement_name(line) for _, line in _requirement_lines(path)}
+        found[path] = frozenset(name for name in names if name)
+    return found
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 배포판 이름 → import 이름, **설치 없이**
+# ──────────────────────────────────────────────────────────────────────────────
+
+#: 배포판 이름과 import 이름 사이에서 PyPI 가 실제로 쓰는 접사.
+#:
+#: ⚠️ **이것은 대응표가 아니다.** 표는 `appium-python-client → appium` 처럼 *우리
+#: 의존성의 이름*을 적으므로 의존성을 추가할 때마다 자라고, 자라는 것을 잊으면 낡는다.
+#: 아래는 *PyPI 의 이름 짓기 규약*이고 우리 의존성 목록과 무관하다 — 새 의존성이
+#: 들어와도 이 튜플은 그대로다.
+#:
+#: ⚠️ 그리고 규약은 **틀릴 수 있다.** 그래서 이 모듈은 그것을 믿지 않고 잰다 —
+#: `convention_misattributions()` 가 *설치돼 있어 진실을 알 수 있는* 배포판 전량에 대고
+#: 규약의 예측을 대조한다. 재지 않는 규약은 손 대응표보다 나쁘다(틀려도 조용하다).
+_LEADING_AFFIXES = ('python-', 'py')
+_TRAILING_AFFIXES = ('-python-client', '-python', '-client')
+
+
+def conventional_import_names(distribution_name: str) -> frozenset[str]:
+    """이 배포판이 **아마도** 제공할 최상위 import 이름 (설치 없이 파생).
+
+    실측되는 규약: `python-docx`→`docx` · `PyYAML`→`yaml` · `PyJWT`→`jwt` ·
+    `Appium-Python-Client`→`appium` · `python-multipart`→`multipart`.
+
+    ⚠️ 이 경로는 **계급 B 에만** 쓰인다. 이름이 러너에 설치돼 있으면
+    `packages_distributions()` 가 정확한 답을 주고 그것이 언제나 이긴다. 규약은 설치가
+    없어 정확한 답이 **존재하지 않는** 자리에서만 마지막으로 물어진다.
+    """
+    base = normalize(distribution_name)
+    stems = {base}
+    for prefix in _LEADING_AFFIXES:
+        if base.startswith(prefix) and len(base) > len(prefix):
+            stems.add(base[len(prefix):])
+    for suffix in _TRAILING_AFFIXES:
+        if base.endswith(suffix) and len(base) > len(suffix):
+            stems.add(base[: -len(suffix)])
+    # import 이름에는 `-` 가 올 수 없다. 규약은 `_` 로 바꾸거나 붙여 쓴다.
+    names: set[str] = set()
+    for stem in stems:
+        names.add(stem.replace('-', '_'))
+        names.add(stem.replace('-', ''))
+    return frozenset(names)
+
+
+def convention_misattributions(
+    declared: frozenset[str] | set[str],
+    provided: Mapping[str, list[str]] | None = None,
+) -> list[str]:
+    """규약이 **틀린 배포판에** 이름을 붙이는가 — 진실을 알 수 있는 자리에서 잰다.
+
+    위험한 오예측은 「규약이 배포판 D 가 이름 N 을 준다고 했는데, 설치본에서 N 을
+    실제로 주는 것은 **다른 배포판**인 경우」다. 그때 이 게이트는 선언되지 않은 의존을
+    선언된 것으로 읽고 **조용히 통과**시킨다 — 규약을 넓힐 때 정확히 그 값이 든다.
+
+    빈 리스트가 초록이다.
+    """
+    truth = packages_distributions() if provided is None else provided
+    errors: list[str] = []
+    for distribution_name in sorted(declared):
+        for guess in sorted(conventional_import_names(distribution_name)):
+            owners = truth.get(guess)
+            if not owners:
+                continue
+            if normalize(distribution_name) not in {normalize(owner) for owner in owners}:
+                errors.append(
+                    f'  · 규약이 {distribution_name!r} 가 {guess!r} 를 제공한다고 했는데, '
+                    f'설치본에서 그것을 제공하는 것은 {sorted(owners)} 다'
+                )
+    return errors
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # 배포판 — 이 저장소가 내는 파이썬 배포물 하나
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -121,8 +331,8 @@ class Distribution:
 
     #: `[project] name`. 보고 메시지가 「어느 pyproject 를 고치라」고 말할 때 쓴다.
     name: str
-    #: 그 `pyproject.toml` 자신.
-    pyproject_path: Path
+    #: 그 `pyproject.toml` 자신. `requirements*.txt` 에서 파생했으면 `None` 이다.
+    pyproject_path: Path | None
     #: 그 파일이 있는 디렉터리 — 이 배포판의 모든 상대 경로가 여기서 시작한다.
     root: Path
     #: 휠에 실리는 최상위 **패키지** 디렉터리 (`packages.find.include` 에서 파생).
@@ -135,10 +345,51 @@ class Distribution:
     module_files: tuple[Path, ...]
     #: 이 배포판이 **선언한** 배포판 전부 (런타임 + 모든 extra), PEP 503 정규화.
     declared: frozenset[str]
+    #: 그 선언을 **어느 파일이** 했는가 — `(경로, 이름 집합)` 의 정렬된 쌍.
+    #:
+    #: ⚠️ `declared` 는 이것의 합집합이지만, 합치기 **전의** 값이 여기 남아야 한다.
+    #: 선언이 레인별 목록 넷으로 나뉜 저장소에서 그 넷을 한 집합으로만 들고 있으면
+    #: 「중앙에만 필요한 것」과 「챔버 노드에도 필요한 것」이 같은 값이 되고, 그러면
+    #: *챔버에서만 죽는 결함*을 볼 수 있는 축 자체가 사라진다. 이 모듈은 그 값을
+    #: **보존만** 하고 판정하지 않는다 — 어느 코드가 어느 레인에 실리는가는 이 모듈이
+    #: 알 수 없고(빌드 스크립트가 그 SSOT 다), 모르는 것을 판정하면 그것은 발명이다.
+    declared_by: tuple[tuple[str, frozenset[str]], ...] = ()
+    #: 이 선언에 매이는 것이 **트리 전체**인가.
+    #:
+    #: `[project]` 이 있으면 거짓이다 — 그 선언은 자기가 싣는 패키지에 대한 것이고,
+    #: 스캔 범위도 거기서 파생된다. `requirements*.txt` 뿐인 저장소에서는 참이다:
+    #: 그 목록들이 이 저장소가 가진 선언의 **전부**이므로, 저장소의 모든 파이썬이
+    #: 그 선언에 매인다. 범위를 좁힐 근거가 트리 안에 없다.
+    whole_tree: bool = False
+
+    @property
+    def is_installable(self) -> bool:
+        """이 선언 단위가 **휠을 내는가.**
+
+        `requirements*.txt` 는 설치 목록이지 배포 선언이 아니다 — 그것으로는 휠을
+        만들 수 없고, 따라서 축 ②(패키지 자원 폐포)는 그 저장소에서 **잴 수 없다**.
+        ⚠️ 잴 수 없는 것을 초록으로 읽지 마라. 부르는 쪽이 이 값을 보고 그 축을
+        건너뛰되, **건너뛰었다는 사실을 말해야** 한다.
+        """
+        return self.pyproject_path is not None
+
+    @property
+    def declaration_label(self) -> str:
+        """「어느 파일을 고치라」고 말할 때 쓰는 이름."""
+        if self.pyproject_path is not None:
+            return self.pyproject_path.name
+        return ' · '.join(name for name, _ in self.declared_by) or REQUIREMENTS_GLOB
+
+    def sources_declaring(self, name: str) -> tuple[str, ...]:
+        """그 배포판을 선언한 파일들. 비어 있으면 아무도 선언하지 않았다는 뜻이다."""
+        needle = normalize(name)
+        return tuple(source for source, names in self.declared_by if needle in names)
 
     @property
     def scan_roots(self) -> tuple[Path, ...]:
         """이 배포판에 딸린 파이썬 전부 — 실리는 패키지 + 옆에서 도는 tests/scripts."""
+        if self.whole_tree:
+            return (self.root,)
         roots = list(self.package_roots)
         for name in _UNSHIPPED_BUT_RUNS:
             candidate = self.root / name
@@ -217,22 +468,77 @@ def _distribution_from_pyproject(path: Path) -> Distribution | None:
     )
 
 
+def _distribution_from_requirements(repo_root: Path) -> Distribution | None:
+    """`requirements*.txt` 들을 **하나의** 선언 단위로 읽는다. 없으면 `None`.
+
+    ⭐ **왜 넷을 하나로 읽는가 — 그리고 그것이 무엇을 포기하는가.**
+
+    이 저장소의 설치 목록은 넷(GUI · central · session-node · web)이고 서로 다르다.
+    그러니 「목록마다 선언 단위 하나」가 자연스러워 보인다. **그런데 그렇게 하면 각
+    단위의 스캔 범위가 전부 같은 트리가 된다** — 목록은 넷인데 소스는 하나뿐이기
+    때문이다. 그 결과 이 게이트는 *모든* 목록이 *모든* import 를 선언하라고 요구하고,
+    그것은 실측된 결정을 뒤집는다: 소비 레인은 `psycopg` 를 중앙에만 두고 세션 노드에는
+    **두지 않기로** 판정했으며 그 부재를 시험 하나가 봉인하고 있다
+    (`test_session_node_package.py::test_node_requirements_do_not_add_central_db_driver`).
+    즉 「목록마다 하나」는 이미 옳다고 판정된 상태를 red 로 만든다.
+
+    코드를 레인별로 가르려면 *어느 진입점이 어느 모듈을 담는가*를 알아야 하고, 그
+    SSOT 는 빌드 스크립트다 — 이 모듈이 볼 수 없는 곳이다. 그것을 여기서 짐작하면
+    두 번째 SSOT 가 생기고, 그것이 이 계열이 이미 값을 치른 형태다.
+
+    그래서 이 모듈은 **합집합으로 판정하고, 나뉜 값은 `declared_by` 로 보존한다.**
+    포기한 것은 분명하다: *어느 목록에도 없다*는 잡지만 *이 목록에만 없다*는 못 잡는다.
+    후자의 축은 소비 레인의 `test_install_lists_pin_what_each_lane_imports.py` 가 이미
+    갖고 있고 그쪽이 SSOT 다. 두 축은 겹치지 않는다 — 그쪽은 공유 레인 배포판
+    (`fcc_test_*`)만 보고 레인별로 판정하며, 이쪽은 서드파티 전량을 보되 저장소
+    단위로 판정한다.
+    """
+    declarations = requirements_declarations(repo_root)
+    if not declarations:
+        return None
+    declared_by = tuple(
+        (str(path.relative_to(repo_root)), names)
+        for path, names in sorted(declarations.items())
+    )
+    return Distribution(
+        name=repo_root.name,
+        pyproject_path=None,
+        root=repo_root,
+        package_roots=(),
+        module_files=(),
+        declared=frozenset().union(*declarations.values()) if declarations else frozenset(),
+        declared_by=declared_by,
+        whole_tree=True,
+    )
+
+
 def discover_distributions(repo_root: Path) -> tuple[Distribution, ...]:
-    """이 저장소가 내는 파이썬 배포판 **전부** (파생).
+    """이 저장소의 **선언 단위** 전부 (파생).
 
     ⚠️ 목록을 인자로 받지 않는다. 목록을 적어 두는 순간 그 목록이 다음에 낡을 자리가
     되고, 그것이 이 축이 없애려는 바로 그 형태다. 실측: 이 레인은 배포판 2개
-    (루트 `fcc-test-contracts` + `packages/fcc-test-kernel`), 소비 레인은 1개다.
+    (루트 `fcc-test-contracts` + `packages/fcc-test-kernel`), 소비 상자는 1개다.
+
+    ⭐ **선언 출처도 파생이다.** 초판은 「한 저장소 = `[project]` 절」을 암묵 가정했다.
+    두 상자에서는 참이지만 그 원본 모노레포에서는 **거짓**이다 — 그쪽 `pyproject.toml`
+    에는 `[tool.pytest.ini_options]` 뿐이고 선언은 `requirements*.txt` 넷에 있다.
+    그 가정 위에서 이 판정기는 배포판을 **0개**로 세고, 0개는 「위반 없음」과 같은
+    모양이라 **조용히 초록**이다(실측 2026-09-05).
+
+    그래서 출처를 파일 존재로 판정한다 — `[project]` 을 가진 `pyproject.toml` 이 하나라도
+    있으면 그것들이 출처이고, 하나도 없으면 `requirements*.txt` 가 출처다. 둘 다 없으면
+    선언 단위가 없고, 그때 이 함수는 **빈 튜플**을 돌려준다. ⚠️ 빈 튜플을 통과로 읽지
+    마라 — 부르는 쪽이 그것을 이름 대고 막아야 한다.
     """
     found: list[Distribution] = []
-    for path in sorted(repo_root.rglob('pyproject.toml')):
-        relative = path.relative_to(repo_root)
-        if any(part in NOT_SOURCE or part.endswith('.egg-info') for part in relative.parts):
-            continue
+    for path in sorted(iter_source_files(repo_root, 'pyproject.toml')):
         distribution = _distribution_from_pyproject(path)
         if distribution is not None:
             found.append(distribution)
-    return tuple(found)
+    if found:
+        return tuple(found)
+    fallback = _distribution_from_requirements(repo_root)
+    return (fallback,) if fallback is not None else ()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -341,13 +647,14 @@ class UndeclaredImport:
     module: str
     providers: tuple[str, ...]
     distribution: str
-    pyproject: str
+    #: 그 선언이 있어야 할 파일 — `pyproject.toml` 이거나 설치 목록들이다.
+    declaration: str
     wheres: tuple[str, ...]
 
     def describe(self) -> str:
         return (
             f'  · {self.module!r} — {list(self.providers)} 가 제공하는데 '
-            f'{self.pyproject} 선언에 없다 (우연히 깔려 있을 뿐이다). '
+            f'{self.declaration} 선언에 없다 (우연히 깔려 있을 뿐이다). '
             f'부르는 곳: {", ".join(self.wheres[:3])}'
         )
 
@@ -362,18 +669,29 @@ class UnresolvableImport:
 
 UNDECLARED_REMEDY = (
     '이 저장소가 자족적이지 않다 — 코드가 요구하는데 선언하지 않은 것이 있다:\n{report}\n\n'
-    '고치는 법: 그 배포판의 pyproject.toml 에서 [project.dependencies](소스가 쓰면) 또는 '
-    '[project.optional-dependencies] 의 적절한 extra(그 도구만 쓰면) 에 그 배포판을 '
-    '선언하라. ⚠️ import 에 try/except 가드를 다는 것으로 통과시키지 마라 — 그것은 '
+    '고치는 법 — 선언 출처가 무엇인지에 따라 두 모양이다:\n'
+    '  · `pyproject.toml` 이 출처이면 [project.dependencies](소스가 쓰면) 또는 '
+    '[project.optional-dependencies] 의 적절한 extra(그 도구만 쓰면) 에 선언하라.\n'
+    '  · `requirements*.txt` 가 출처이면 **어느 목록에** 적을지가 판정이다. 그 코드가 '
+    '어느 레인에서 도는지 보고 그 레인의 목록에 적어라 — 넷 다에 적는 것은 답이 아니다 '
+    '(그러면 챔버 노드가 중앙 전용 드라이버를 받는다).\n'
+    '⚠️ import 에 try/except 가드를 다는 것으로 통과시키지 마라 — 그것은 '
     '그 경로의 검사를 조용히 끄는 것이고, 이 계열이 lane_check 에서 이미 이름 붙여 거부한 '
     '형태다("기준선을 관측값으로 덮어써서 초록을 만들지 마라 — 그것은 검사를 끄는 것이다").'
 )
 
 LEDGER_REMEDY = (
     '해소 불가 import 원장이 관측과 어긋난다:\n{report}\n\n'
-    '[새로 생김] 의 고치는 법은 선언이 아니다. 그 코드의 협력자가 어느 레인에 사는지 보고, '
-    '(가) 이 상자가 그 레인을 통해 닿게 하거나 (나) 그 코드가 이 상자의 것이 아니면 옮겨라. '
-    '그 판정을 내리기 전까지 원장에 넣는 것은 **사유와 날짜를 함께 적을 때만** 정당하다.\n'
+    '[새로 생김] 의 고치는 법은 선언이 아니다. ⚠️ 원인이 **둘**이고 처방이 다르다:\n'
+    '  (가) 그 코드가 이 저장소에 없다 — 협력자가 어느 레인에 사는지 보고, 이 상자가 그 '
+    '레인을 통해 닿게 하거나, 그 코드가 이 상자의 것이 아니면 옮겨라.\n'
+    '  (나) 그 코드는 이 저장소에 **있는데** 부르는 쪽이 `sys.path` 를 손봐서만 닿는다 '
+    '(`sys.path.insert(0, .../어떤_하위디렉터리)` 뒤 그 자식을 최상위 이름으로 부르는 형상). '
+    '이것은 공급 결함이 아니라 import 위생이다 — 패키지 경로로 부르게 고치면 사라진다. '
+    '판정기의 first-party 파생은 최상위 소스 디렉터리의 **직계** 자식까지만 보고, 더 넓히면 '
+    '트리 어딘가의 동명 파일이 실재하는 서드파티 미선언을 가린다.\n'
+    '어느 쪽이든 그 판정을 내리기 전까지 원장에 넣는 것은 **사유와 날짜를 함께 적을 때만** '
+    '정당하다.\n'
     '[해소됨] 은 원장이 낡았다는 사실이고, 그것도 소식이다 — 원장에서 그 줄을 지워라. '
     '⚠️ skip 이나 예외 목록으로 바꾸지 마라: 예외 목록은 한 방향으로만 자라 조용히 낡지만, '
     '양방향 원장은 낡을 수 없다.'
@@ -419,6 +737,7 @@ class SupplyClosure:
         #: 설치본이 말하는 「import 이름 → 그것을 제공하는 배포판」. 손으로 만든 표가
         #: 아니라 표준 라이브러리가 주는 SSOT 다.
         self.provided = packages_distributions()
+        self._conventional_cache: dict[str, frozenset[str]] = {}
         self.first_party = self._first_party_names()
         self.python_files = self._python_files()
         self.sites = self._third_party_sites()
@@ -454,6 +773,19 @@ class SupplyClosure:
         names = _importable_children(self.repo_root)
         for distribution in self.distributions:
             names |= set(distribution.provided_import_names)
+            if distribution.whole_tree:
+                # ⚠️ 이 저장소에는 **실리는 패키지가 없다.** 코드가 서로에게 닿는
+                #    방법은 최상위 소스 디렉터리를 `sys.path` 에 얹는 것뿐이고
+                #    (`sys.path.insert(0, str(SRC))`), 그러면 그 디렉터리의 **직계
+                #    자식이 최상위 import 이름**이 된다 — `import application`,
+                #    `import domain`. 저장소 루트만 훑으면 그 전부가 서드파티로
+                #    오독된다. 실측 2026-09-05: 그렇게 오독되는 이름이 63개였다.
+                for child in sorted(self.repo_root.iterdir()):
+                    if (child.is_dir() and child.name not in NOT_SOURCE
+                            and not child.name.startswith('.')
+                            and not is_virtual_environment(child)):
+                        names |= _importable_children(child)
+                continue
             package_roots = set(distribution.package_roots)
             for root in distribution.scan_roots:
                 if root in package_roots:
@@ -479,12 +811,7 @@ class SupplyClosure:
             targets = list(distribution.scan_roots)
             targets_files = list(distribution.module_files)
             for root in targets:
-                for path in root.rglob('*.py'):
-                    relative = path.relative_to(self.repo_root)
-                    if any(part in NOT_SOURCE or part.endswith('.egg-info')
-                           for part in relative.parts):
-                        continue
-                    targets_files.append(path)
+                targets_files.extend(iter_source_files(root))
             for path in targets_files:
                 # ⚠️ 더 깊은 배포판이 이긴다. 하위 트리 배포판의 파일이 상위 배포판의
                 # 스캔에 딸려 들어가는 경우, 소유는 자기 pyproject 를 가진 쪽이다.
@@ -502,6 +829,19 @@ class SupplyClosure:
                 sites.append(site)
         return sites
 
+    def _conventional(self, distribution: Distribution) -> frozenset[str]:
+        """이 선언 단위가 **설치 없이도** 제공한다고 규약이 말하는 import 이름 (캐시).
+
+        ⚠️ 규약은 마지막 경로다. 설치본이 있으면 그것이 언제나 이긴다.
+        """
+        cached = self._conventional_cache.get(distribution.name)
+        if cached is None:
+            cached = frozenset().union(
+                *(conventional_import_names(name) for name in distribution.declared)
+            ) if distribution.declared else frozenset()
+            self._conventional_cache[distribution.name] = cached
+        return cached
+
     def _classify(self) -> tuple[list[UndeclaredImport], list[UnresolvableImport]]:
         """두 결함 계급을 가른다 — 고치는 사람도, 고치는 법도 다르기 때문이다."""
         undeclared: dict[tuple[str, str], list[str]] = {}
@@ -518,16 +858,26 @@ class SupplyClosure:
                     undeclared.setdefault(key, []).append(site.where)
                     undeclared_meta[key] = (
                         tuple(providers),
-                        str(distribution.pyproject_path.relative_to(self.repo_root)),
+                        distribution.declaration_label,
                     )
                 continue
             # 설치돼 있지 않다. 이 검사가 도는 환경은 `[test]` 만 깔린 러너일 수 있고,
-            # 다른 extra 로 선언된 도구(브라우저 QA 등)는 여기 없는 것이 정상이다.
-            # 그때는 이름 매칭이 유일하게 남은 증거다 — 정확한 매핑은 배포판을 설치해야만
-            # 알 수 있기 때문이다(`packages_distributions()` 는 설치본을 훑는다).
-            # ⚠️ 이름이 배포판과 다른 경우(PyYAML→yaml)는 이 우회를 못 타지만, 그런 것은
-            # `[test]` 에 선언돼 러너에 설치되므로 위 정확한 경로로 판정된다.
+            # 다른 extra 나 다른 레인의 목록으로 선언된 것(챔버 전용 장비 드라이버 등)은
+            # 여기 없는 것이 **정상**이다. 그때 남은 증거는 이름뿐이다.
             if normalize(site.module) in distribution.declared:
+                continue
+            # ⚠️ **세 번째 경로.** 초판은 여기서 멈추면서 이렇게 적었다: *"이름이
+            # 배포판과 다른 경우(PyYAML→yaml)는 이 우회를 못 타지만, 그런 것은 선언돼
+            # 러너에 설치되므로 위 정확한 경로로 판정된다."* **그 가정이 하드웨어 전용
+            # 의존이 많은 저장소에서 깨진다** — `Appium-Python-Client` 와 `python-docx`
+            # 는 선언돼 있지만 챔버 레인의 것이라 중앙 러너에는 깔리지 않고, 이름도
+            # 달라 위 대조도 실패한다. 그러면 **선언을 지키고 있는 저장소가 red** 가
+            # 된다(실측 2026-09-05).
+            #
+            # 그 결함은 오탐 둘보다 나쁘다: 이 게이트의 답이 **러너에 무엇이 깔려 있는지**
+            # 에 따라 달라진다는 뜻이고, 그러면 초록이 무엇을 뜻하는지 말할 수 없다.
+            # 규약으로 이름을 파생하면 그 의존이 끊긴다 — 설치 여부와 무관하게 같은 답이다.
+            if site.module in self._conventional(distribution):
                 continue
             unresolvable.setdefault(key, []).append(site.where)
 
@@ -536,7 +886,7 @@ class SupplyClosure:
                 module=module,
                 providers=undeclared_meta[(module, dist_name)][0],
                 distribution=dist_name,
-                pyproject=undeclared_meta[(module, dist_name)][1],
+                declaration=undeclared_meta[(module, dist_name)][1],
                 wheres=tuple(sorted(set(wheres))),
             )
             for (module, dist_name), wheres in sorted(undeclared.items())
