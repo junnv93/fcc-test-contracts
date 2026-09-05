@@ -346,21 +346,78 @@ class TestTheDeclaredFeaturesMode(unittest.TestCase):
             check_api_contract_compatibility(self.kc, self.ssot,
                                              declared_features=KC_DECLARED)
 
-    def test_the_closure_arm_is_wired_into_the_mode(self):
+    def _cannot_mint_a_draft(self) -> dict:
+        """A provider that publishes test plans and can create none.
+
+        Both doors are removed together, because the closure asks whether a
+        draft *can exist* rather than which door made it — take one away and
+        the other still answers, which
+        ``test_an_alternative_producer_satisfies_the_closure`` above pins.
+        """
         crippled = dict(self.kc)
         crippled['operations'] = {
             name: operation
             for name, operation in self.kc['operations'].items()
             if name not in {'create_test_plan_draft', 'import_test_plan'}
         }
+        return crippled
+
+    def test_the_closure_arm_is_wired_into_the_mode(self):
         result = check_api_contract_compatibility(
-            crippled, self.ssot,
+            self._cannot_mint_a_draft(), self.ssot,
             mode='declared-features', declared_features=KC_DECLARED,
         )
         self.assertIn(
             'dependency_closure_violation',
             {issue.code for issue in result.issues},
         )
+
+    def test_live_subset_admits_the_very_surface_the_closure_refuses(self):
+        """The other half of the arm above — and the one that can rot silently.
+
+        ``§3`` of the onboarding document tells a joining team that
+        ``live-subset`` is *"a building aid and never a conformance answer"*.
+        Until now nothing measured that sentence: the test above asserts the
+        closure **fires** under ``declared-features``, and a change that wired
+        the same arm into ``live-subset`` would leave every existing assertion
+        green while quietly making the document's warning false.
+
+        So the claim is stated as a **difference on one document**. The same
+        surface — a provider that publishes test plans and can mint no draft —
+        is refused by the conformance mode and admitted by the building aid,
+        with no issues at all. That is what "green on a subset nobody defined"
+        means, and it is why evidence carrying ``checker.mode = "live-subset"``
+        is rejected by name rather than merely discouraged.
+
+        ⚠️ The **count** of violations is deliberately not asserted: it is the
+        number of that document's consumers of ``draft_id``, so it moves with
+        the provider's declaration rather than with this rule. Measured
+        2026-09-06 by the KC lane on its own contract (7) and here on the
+        reference example (10) — same finding, two numbers. Asserting either
+        would make this seal fail for a reason that is not its subject.
+        """
+        crippled = self._cannot_mint_a_draft()
+
+        refused = check_api_contract_compatibility(
+            crippled, self.ssot,
+            mode='declared-features', declared_features=KC_DECLARED,
+        )
+        admitted = check_api_contract_compatibility(
+            crippled, self.ssot, mode='live-subset',
+        )
+
+        self.assertFalse(refused.compatible)
+        self.assertIn(
+            'dependency_closure_violation',
+            {issue.code for issue in refused.issues},
+        )
+        self.assertTrue(
+            admitted.compatible,
+            'live-subset now refuses this surface — if that is intended, §3 of '
+            'provider_onboarding.md no longer describes it and must be rewritten '
+            'in the same change',
+        )
+        self.assertEqual(admitted.issues, [])
 
 
 class TestTheFeatureScopeIsAConservativeExtension(unittest.TestCase):
