@@ -481,7 +481,7 @@
     },
     "get_measurement_job": {
       "method": "GET",
-      "path": "/headless/jobs/{job_id}"
+      "path": "/headless/jobs/{job_uuid}"
     },
     "get_published_test_plan": {
       "method": "GET",
@@ -589,7 +589,7 @@
     },
     "stop_measurement_job": {
       "method": "POST",
-      "path": "/headless/jobs/{job_id}/stop"
+      "path": "/headless/jobs/{job_uuid}/stop"
     },
     "stream_report_output_download": {
       "method": "GET",
@@ -1334,9 +1334,6 @@
         "finished_at": {
           "type": "string"
         },
-        "id": {
-          "type": "integer"
-        },
         "job_uuid": {
           "type": "string"
         },
@@ -1375,7 +1372,7 @@
         }
       },
       "required": [
-        "id",
+        "job_uuid",
         "status",
         "excel_path"
       ],
@@ -1431,9 +1428,6 @@
         "excel_path": {
           "type": "string"
         },
-        "id": {
-          "type": "integer"
-        },
         "job_uuid": {
           "type": "string"
         },
@@ -1442,10 +1436,9 @@
         }
       },
       "required": [
-        "id",
+        "job_uuid",
         "status",
-        "excel_path",
-        "job_uuid"
+        "excel_path"
       ],
       "type": "object"
     },
@@ -2315,15 +2308,15 @@
     "StopMeasurementJobResponse": {
       "additionalProperties": false,
       "properties": {
-        "job_id": {
-          "type": "integer"
+        "job_uuid": {
+          "type": "string"
         },
         "stop_requested": {
           "type": "boolean"
         }
       },
       "required": [
-        "job_id",
+        "job_uuid",
         "stop_requested"
       ],
       "type": "object"

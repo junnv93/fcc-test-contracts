@@ -46,6 +46,11 @@ from fcc_test_contracts.headless.contract_identity import (  # noqa: E402
     feature_scoped_document,
     feature_scoped_identity,
 )
+from fcc_test_contracts.headless.path_identifier_policy import (  # noqa: E402
+    INTEGER_IDENTIFIER_GRANDFATHER,
+    PathIdentifierPolicyError,
+    validate_path_identifier_policy,
+)
 from fcc_test_contracts.headless.dependency_closure import (  # noqa: E402
     DEFECT_IDENTIFIERS,
     IDENTIFIER_CLASSES,
@@ -160,17 +165,26 @@ class TestTheTwoRepairedIdentifierDefects(unittest.TestCase):
                 self.assertNotIn('job_id', properties)
                 self.assertIn('generation_job_id', properties)
 
-    def test_the_two_axes_cannot_share_a_path_parameter_name(self):
-        """Why the repair had to go this direction and not the other.
+    def test_no_path_parameter_is_spelled_job_id_on_either_axis(self):
+        """``job_id`` named two different things and now names neither.
 
-        ``HEADLESS_API_PATH_PARAMS`` is keyed by name, and the two axes disagree
-        on type — so spelling the generation route ``{job_id}`` was never
-        available, whatever anyone's taste.
+        The generation axis moved to ``generation_job_id`` and the measurement
+        axis to ``job_uuid``. The name that was ambiguous is simply gone —
+        which is stronger than disambiguating it, because a future author
+        cannot reintroduce the ambiguity by reusing a name that still exists.
         """
-        self.assertEqual(HEADLESS_API_PATH_PARAMS['job_id']['type'], 'integer')
-        self.assertEqual(
-            HEADLESS_API_PATH_PARAMS['generation_job_id']['type'], 'string',
+        self.assertNotIn('job_id', HEADLESS_API_PATH_PARAMS)
+        for name, (_method, path) in HEADLESS_API_ROUTES.items():
+            with self.subTest(name):
+                self.assertNotIn('{job_id}', path)
+
+    def test_every_axis_identifier_has_exactly_one_minimal_producer(self):
+        producers = identifier_producers(
+            HEADLESS_API_OPERATIONS, HEADLESS_API_ROUTES, HEADLESS_API_SCHEMAS,
         )
+        self.assertEqual(producers['generation_job_id'],
+                         ('submit_test_plan_generation',))
+        self.assertEqual(producers['job_uuid'], ('submit_measurement_job',))
 
 
 class TestTheIdentifierClasses(unittest.TestCase):
@@ -183,16 +197,17 @@ class TestTheIdentifierClasses(unittest.TestCase):
     def test_every_path_parameter_is_classed(self):
         self.assertEqual(set(IDENTIFIER_CLASSES), set(HEADLESS_API_PATH_PARAMS))
 
-    def test_the_defect_ratchet_does_not_grow(self):
+    def test_the_defect_ratchet_is_empty_and_stays_empty(self):
         declared = {
             identifier
             for identifier, klass in IDENTIFIER_CLASSES.items()
             if klass == IDENTIFIER_CLASS_DEFECT
         }
         self.assertEqual(declared, set(DEFECT_IDENTIFIERS))
-        self.assertLessEqual(
-            len(DEFECT_IDENTIFIERS), 1,
-            'a new naming mismatch may not be absorbed by classing it a defect',
+        self.assertEqual(
+            set(DEFECT_IDENTIFIERS), set(),
+            'a naming mismatch may not be absorbed by classing it a defect — '
+            'the one member this ratchet ever held was repaired the same day',
         )
 
     def test_a_new_unproducible_identifier_cannot_be_classed_as_produced(self):
@@ -424,3 +439,54 @@ class TestThePublishedArtifactIsThisTree(unittest.TestCase):
 
 if __name__ == '__main__':  # pragma: no cover
     unittest.main()
+
+
+class TestPathIdentifiersAreOpaque(unittest.TestCase):
+    """OWASP API1:2023 + Zalando rule 174, enforced rather than recommended.
+
+    The measurement route used to take the storage primary key. That is
+    enumerable (OWASP's stated reason), it publishes the laboratory's job count
+    because the column is AUTOINCREMENT (Zalando rule 144's stated reason), and
+    a per-provider integer collides across providers (this contract's own
+    reason). All three are closed by one change and this class refuses its
+    return.
+    """
+
+    def test_the_policy_holds_for_the_shipped_contract(self):
+        validate_path_identifier_policy(HEADLESS_API_PATH_PARAMS)
+
+    def test_a_new_integer_path_identifier_is_refused(self):
+        with self.assertRaises(PathIdentifierPolicyError):
+            validate_path_identifier_policy(
+                dict(HEADLESS_API_PATH_PARAMS,
+                     invented_id={'type': 'integer', 'minimum': 1}),
+            )
+
+    def test_the_ratchet_must_shrink_when_a_surface_migrates(self):
+        """A grandfathered id that became opaque may not stay on the list."""
+        migrated = dict(HEADLESS_API_PATH_PARAMS)
+        migrated['session_id'] = {'type': 'string', 'minLength': 1}
+        with self.assertRaises(PathIdentifierPolicyError):
+            validate_path_identifier_policy(migrated)
+
+    def test_every_grandfathered_entry_carries_its_reason(self):
+        for name, reason in INTEGER_IDENTIFIER_GRANDFATHER.items():
+            with self.subTest(name):
+                self.assertGreater(
+                    len(reason), 40,
+                    'a ratchet entry without an argument is an exemption',
+                )
+
+    def test_the_measurement_job_no_longer_publishes_its_primary_key(self):
+        for name in ('MeasurementJobSubmitted', 'MeasurementJobSnapshot'):
+            with self.subTest(name):
+                schema = HEADLESS_API_SCHEMAS[name]
+                self.assertNotIn('id', schema['properties'])
+                self.assertIn('job_uuid', schema['required'])
+
+    def test_the_stop_response_echoes_the_identifier_that_addressed_it(self):
+        schema = HEADLESS_API_SCHEMAS['StopMeasurementJobResponse']
+        self.assertIn('job_uuid', schema['required'])
+        self.assertNotIn('job_id', schema['properties'])
+        _method, path = HEADLESS_API_ROUTES['stop_measurement_job']
+        self.assertIn('{job_uuid}', path)

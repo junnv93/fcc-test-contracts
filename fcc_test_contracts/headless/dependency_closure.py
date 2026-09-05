@@ -48,7 +48,8 @@ vacuous or refuses every provider:
                         does.
     defect              it has no producer because a name does not line up, and
                         that is a bug in this contract rather than a fact about
-                        providers.
+                        providers. ⚠️ Currently EMPTY — the one member was
+                        repaired the day the class was written.
 
 ⚠️ ``defect`` is **not an exemption.** :data:`DEFECT_IDENTIFIERS` is a ratchet:
 :func:`validate_identifier_classes` refuses a contract in which the set has
@@ -109,33 +110,25 @@ IDENTIFIER_CLASSES: dict[str, str] = {
     # A session is what a measurement leaves behind. The contract has no
     # "create session" operation because there is no such act — running is.
     'session_id': IDENTIFIER_CLASS_SIDE_EFFECT,
-    # 🔴 The measurement axis spells one identifier three ways:
-    #       route                    /headless/jobs/{job_id}
-    #       submit_measurement_job   MeasurementJobSubmitted.id
-    #       stop_measurement_job     StopMeasurementJobResponse.job_id
-    #   so ``job_id`` has no derivable producer and a client cannot learn
-    #   mechanically where the value in ``{job_id}`` comes from.
-    #
-    # ⚠️ This is the SAME defect as the one repaired in the generation axis on
-    # 2026-09-05 (route ``{generation_job_id}`` vs producer field ``job_id``),
-    # and it was invisible until that repair: while the generation axis also
-    # published a field called ``job_id``, the derivation found a producer for
-    # ``job_id`` and reported no defect — it had simply linked the measurement
-    # route to the generation submit. Removing the false link exposed the real
-    # gap.
-    #
-    # ⚠️ Not repaired in the same wave, deliberately. Unlike the generation
-    # axis — which no provider serves today — ``/headless/jobs/{job_id}`` is
-    # live: KC serves all four measurement operations and the platform's job
-    # screen reads ``job.id`` in three hand-written places. Renaming a served
-    # wire field is an operator decision, not a side effect of deriving a
-    # closure.
-    'job_id': IDENTIFIER_CLASS_DEFECT,
+    # ⚠️ ``job_uuid``, not ``job_id``. Until 2026-09-05 the measurement route
+    # took ``{job_id}`` and no operation produced a field of that name — submit
+    # returned the storage PK as ``id`` and stop echoed ``job_id`` — so a client
+    # could not learn mechanically where the value in the path comes from, and a
+    # consumer choosing wrongly between the two got a 404. The repair moved the
+    # route to the opaque handle the schema already carried; see
+    # ``path_identifier_policy`` for the standards it follows.
+    'job_uuid': IDENTIFIER_CLASS_PROVIDER_PRODUCED,
 }
 
 
 #: The ratchet. Grows ⇒ red; see the module docstring.
-DEFECT_IDENTIFIERS: frozenset[str] = frozenset({'job_id'})
+#:
+#: ⚠️ **Empty, and that is a state to defend rather than a state to assume.**
+#: It held ``job_id`` for part of 2026-09-05 — a defect that had been invisible
+#: while a second axis published a field of the same name, and that became
+#: visible the moment that collision was repaired. An empty ratchet does not
+#: mean the derivation found nothing; it means everything it found was fixed.
+DEFECT_IDENTIFIERS: frozenset[str] = frozenset()
 
 
 def consumed_identifiers(operation_id: str, routes: dict) -> frozenset[str]:

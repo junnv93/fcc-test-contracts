@@ -188,12 +188,37 @@ without taking `x` from its own path. So serving `publish_test_plan_draft`
 obliges you to serve `create_test_plan_draft` **or** `import_test_plan` — either
 one; the closure asks whether a draft can exist, not which door made it.
 
-⚠️ Three identifiers are exempt and one is a known defect on our side:
-`project_id` comes from the centre (no provider mints projects), `session_id`
-appears when a measurement runs (no operation creates one), and `job_id` has no
-derivable producer because our measurement axis spells it three ways —
-registered debt, and it means the closure is silent there. Nothing you do
-about that.
+⚠️ Two identifiers are exempt: `project_id` comes from the centre (no provider
+mints projects) and `session_id` appears when a measurement runs (no operation
+creates one). Every other path identifier must be mintable by something you
+serve.
+
+🔴 **Breaking change 2026-09-05 — the measurement job is addressed by
+`{job_uuid}`, not `{job_id}`.** The routes are now
+`GET /headless/jobs/{job_uuid}` and `POST /headless/jobs/{job_uuid}/stop`, and
+`MeasurementJobSubmitted` / `MeasurementJobSnapshot` no longer carry `id`.
+If you serve `measurement-jobs`, this is a wire change you must follow.
+
+Why, so you can weigh it rather than just absorb it:
+
+* the route took `{job_id}` and **no response declared a field of that name** —
+  submit returned the storage key as `id` and stop echoed `job_id`, so a client
+  had to guess which addressed the resource, and a wrong guess is a 404;
+* `measurement_jobs.id` is `INTEGER PRIMARY KEY AUTOINCREMENT`, so its value is
+  **the number of jobs your laboratory has ever run** — commercial information
+  handed to every caller ([Zalando RESTful API Guidelines][zalando] rule 144);
+* a per-provider integer is not unique across providers, so your job 1 and the
+  reference provider's job 1 collide the day the centre aggregates a queue;
+* path identifiers should be opaque and unpredictable in the first place
+  ([OWASP API1:2023 BOLA][owasp]: *"Prefer the use of random and unpredictable
+  values as GUIDs for records' IDs"*; [Zalando][zalando] rule 174: *"IDs must be
+  opaque strings and not numbers"*).
+
+`job_uuid` was already in the schema and already unique-indexed. Nothing new was
+invented — the route simply stopped taking the wrong one of the two.
+
+[owasp]: https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/
+[zalando]: https://opensource.zalando.com/restful-api-guidelines/
 
 ⚠️ **This declaration is NOT `ProviderUiDescriptor.features`, and you must not
 copy one into the other.** That field is the display-readiness channel and its

@@ -32,7 +32,13 @@ from fcc_test_contracts.headless.api_contract_features import (
     HEADLESS_FEATURES,
     validate_feature_membership,
 )
+from fcc_test_contracts.headless.api_contract_constants import (
+    HEADLESS_API_PATH_PARAMS,
+)
 from fcc_test_contracts.headless.api_contract_shared_schemas import SHARED_SCHEMAS
+from fcc_test_contracts.headless.path_identifier_policy import (
+    validate_path_identifier_policy,
+)
 
 
 class DuplicateContractKeyError(KeyError):
@@ -104,3 +110,7 @@ HEADLESS_API_FEATURES = dict(HEADLESS_FEATURES)
 # builds an artifact and still resolves a route; the only witness would be a
 # provider judged against a feature nobody declared.
 validate_feature_membership(HEADLESS_API_OPERATIONS)
+
+# A new integer path identifier builds a valid artifact and resolves a valid
+# route; the only witness would be the enumeration it enables.
+validate_path_identifier_policy(HEADLESS_API_PATH_PARAMS)

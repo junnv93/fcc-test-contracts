@@ -775,9 +775,6 @@
           "finished_at": {
             "type": "string"
           },
-          "id": {
-            "type": "integer"
-          },
           "job_uuid": {
             "type": "string"
           },
@@ -822,7 +819,7 @@
           }
         },
         "required": [
-          "id",
+          "job_uuid",
           "status",
           "excel_path"
         ],
@@ -878,9 +875,6 @@
           "excel_path": {
             "type": "string"
           },
-          "id": {
-            "type": "integer"
-          },
           "job_uuid": {
             "type": "string"
           },
@@ -889,10 +883,9 @@
           }
         },
         "required": [
-          "id",
+          "job_uuid",
           "status",
-          "excel_path",
-          "job_uuid"
+          "excel_path"
         ],
         "type": "object"
       },
@@ -1871,15 +1864,15 @@
       "StopMeasurementJobResponse": {
         "additionalProperties": false,
         "properties": {
-          "job_id": {
-            "type": "integer"
+          "job_uuid": {
+            "type": "string"
           },
           "stop_requested": {
             "type": "boolean"
           }
         },
         "required": [
-          "job_id",
+          "job_uuid",
           "stop_requested"
         ],
         "type": "object"
@@ -3479,17 +3472,17 @@
         "x-fcc-permission": "headless:control"
       }
     },
-    "/headless/jobs/{job_id}": {
+    "/headless/jobs/{job_uuid}": {
       "get": {
         "operationId": "get_measurement_job",
         "parameters": [
           {
             "in": "path",
-            "name": "job_id",
+            "name": "job_uuid",
             "required": true,
             "schema": {
-              "minimum": 1,
-              "type": "integer"
+              "minLength": 1,
+              "type": "string"
             }
           }
         ],
@@ -3552,17 +3545,17 @@
         "x-fcc-permission": "headless:read"
       }
     },
-    "/headless/jobs/{job_id}/stop": {
+    "/headless/jobs/{job_uuid}/stop": {
       "post": {
         "operationId": "stop_measurement_job",
         "parameters": [
           {
             "in": "path",
-            "name": "job_id",
+            "name": "job_uuid",
             "required": true,
             "schema": {
-              "minimum": 1,
-              "type": "integer"
+              "minLength": 1,
+              "type": "string"
             }
           }
         ],

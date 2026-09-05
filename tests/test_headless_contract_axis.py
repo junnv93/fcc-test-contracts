@@ -397,9 +397,17 @@ class TestTheContractPackageDoesNotGrow(unittest.TestCase):
         #    주석이 아니다. 모듈이 줄면 이 값을 다시 내릴 것.
         # 2026-09-05 상향 351 → 356 (feature 축). operation 5 개, 선언 외 증가 0.
         'surface_sessions.py': 356,
-        # 2026-09-05 상향 200 → 204 (feature 축). 이 표면의 operation 4 개에
-        # `feature=` 한 줄씩. 선언 외 증가 0.
-        'surface_jobs.py': 204,
+        # 2026-09-05 상향 200 → 218. operation 4 개의 `feature=` 4 줄 +
+        # 나머지는 측정 job 식별자 수리의 사유다 — route 가 `{job_id}` 를 받는데
+        # 그 이름의 필드를 아무 응답도 내지 않았고, 대신 순차 PK(`id`)와
+        # `job_uuid` 둘을 내서 소비자가 골라야 했다(틀리면 404). PK 를 wire 에서
+        # 걷어내고 route 를 `{job_uuid}` 로 옮겼다.
+        #
+        # 사유를 코드 옆에 남기는 이유: 이 변경은 **되돌리고 싶어지는 모양**이다
+        # (`id` 를 다시 넣으면 프런트 3줄이 편해진다). 왜 안 되는지 — 열거 가능성
+        # (OWASP API1:2023) · AUTOINCREMENT 가 랩의 측정 건수를 흘리는 것
+        # (Zalando 144) · provider 간 정수 충돌 — 는 코드에서 읽히지 않는다.
+        'surface_jobs.py': 218,
         # 2026-09-05 상향 158 → 177 (feature 축). operation 3 줄 + 16 줄은
         # `HeadlessBackendStatusSnapshot.required` 에서 `report_automation` 을
         # 뺀 사유다(§6.7.1 ①). 그 필드가 required 인 동안 큐가 없는 provider 도

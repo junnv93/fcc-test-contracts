@@ -373,3 +373,28 @@ answers the runtime question; conformance answers the surface question. A
 provider can serve every measurement-job operation with no worker consuming the
 queue (measured 2026-09-04), and the evidence is green because the evidence is
 about the surface.
+
+
+## Path identifiers must be opaque (2026-09-05)
+
+Every `{name}` a route takes is declared in `HEADLESS_API_PATH_PARAMS`, and
+`path_identifier_policy` refuses a **new** numeric one at import time. The rule
+is not this project's invention:
+
+* [OWASP API Security Top 10 2023 — API1:2023 BOLA][owasp]: *"Prefer the use of
+  random and unpredictable values as GUIDs for records' IDs."*
+* [Zalando RESTful API Guidelines][zalando] rule 174: *"IDs must be opaque
+  strings and not numbers. IDs are unique within some documented context, are
+  stable and don't change for a given object once assigned."* Rule 144 adds the
+  second reason — sequential ids *"may reveal critical, confidential business
+  information, like order volume, to non-privileged clients."*
+
+⚠️ **Three identifiers are still integers and are named rather than excused** —
+`session_id`, `request_id`, `draft_row_id`. They live in
+`INTEGER_IDENTIFIER_GRANDFATHER`, each with the reason it has not moved, and the
+list is a **ratchet**: it may shrink and never grow. Migrating three live
+surfaces inside the commit that repaired a fourth would have been three
+unannounced wire breaks riding along with one decided change.
+
+[owasp]: https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/
+[zalando]: https://opensource.zalando.com/restful-api-guidelines/
