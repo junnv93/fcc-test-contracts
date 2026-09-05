@@ -21,9 +21,18 @@ So this measures, and measuring found the count was neither one nor seven but
 ``scripts/`` and a non-existent ``src/`` on the path but not the root — so the
 battery mutated an installed build nobody edits. Both are repaired; this file is
 what keeps them repaired.
+
+⚠️ **And the axis is what the script CONTRIBUTES to ``sys.path``, not where the
+import happens to resolve.** The first draft asked the second question and CI
+disproved it: CI installs with ``pip install -e``, so the package resolves
+*inside the tree* no matter what the script does, and the assertion was vacuous
+there. Resolution is a property of the environment; putting the root on the path
+is a property of the script. Only the second is the same question in every
+environment — which is the whole point of asking it.
 """
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -46,20 +55,24 @@ SCRIPTS = PROJECT_ROOT / 'scripts'
 #: reason it is in this file.
 _PROBE = textwrap.dedent(
     '''
-    import pathlib, runpy, sys
+    import json, pathlib, runpy, sys
     script = pathlib.Path(sys.argv[1])
+    root = pathlib.Path(sys.argv[2]).resolve()
+    # ⚠️ Take the tree OFF the path first, however it got there — an editable
+    # install writes a ``.pth`` naming the project root, and a script guarded by
+    # ``if str(root) not in sys.path`` would then skip its own insert and look
+    # path-blind. What is being asked is whether the SCRIPT supplies the root,
+    # so nothing else may supply it first.
+    sys.path[:] = [p for p in sys.path if p and pathlib.Path(p).resolve() != root]
     # What CPython itself puts at sys.path[0] for ``python scripts/x.py``.
     sys.path.insert(0, str(script.parent))
+    before = list(sys.path)
     try:
         runpy.run_path(str(script), run_name='__probe__')
     except BaseException:
         pass
-    try:
-        import fcc_test_contracts.headless.api_contract_surfaces as module
-    except Exception as error:  # pragma: no cover - reported as a failure
-        print(f'IMPORT-ERROR {error}')
-    else:
-        print(pathlib.Path(module.__file__).resolve())
+    added = [entry for entry in sys.path if entry not in before]
+    print('PROBE ' + json.dumps(added))
     '''
 )
 
@@ -78,6 +91,14 @@ def _run_probe(script: Path) -> subprocess.CompletedProcess:
       environment would have hidden the defect this file exists to catch.** The
       documented operator command (judgement §9) sets no ``PYTHONPATH``, and
       that is the environment the question is about.
+
+    The probe itself takes one more thing away — the project root, wherever it
+    sits on ``sys.path`` — because CI installs with ``pip install -e`` and the
+    resulting ``.pth`` names that root. Left in place, a script guarded by
+    ``if str(root) not in sys.path`` skips its own insert and reads as
+    path-blind. **Three environments, three different ways to make this check
+    vacuous, and all three were found by the falsifiability test rather than by
+    reading.**
     """
     env = {
         key: value for key, value in os.environ.items()
@@ -85,9 +106,24 @@ def _run_probe(script: Path) -> subprocess.CompletedProcess:
     }
     with tempfile.TemporaryDirectory() as elsewhere:
         return subprocess.run(
-            [sys.executable, '-c', _PROBE, str(script)],
+            [sys.executable, '-c', _PROBE, str(script), str(PROJECT_ROOT)],
             cwd=elsewhere, env=env, capture_output=True, text=True,
         )
+
+
+def _puts_root_on_path(script: Path) -> bool:
+    """Did running ``script`` add this tree to ``sys.path``?"""
+    completed = _run_probe(script)
+    for line in completed.stdout.splitlines():
+        if line.startswith('PROBE '):
+            added = json.loads(line[len('PROBE '):])
+            return any(
+                Path(entry).resolve() == PROJECT_ROOT for entry in added
+            )
+    raise AssertionError(
+        f'probe produced no verdict for {script.name}: '
+        f'{completed.stderr[-500:]}'
+    )
 
 
 def _entry_points() -> list[Path]:
@@ -118,27 +154,18 @@ class TestEveryEntryPointResolvesThisTree(unittest.TestCase):
         """Non-emptiness: a glob that matches nothing passes every assertion."""
         self.assertGreaterEqual(len(_entry_points()), 5)
 
-    def test_each_entry_point_imports_the_package_from_this_tree(self):
+    def test_each_entry_point_puts_this_tree_on_the_path(self):
         for script in _entry_points():
             with self.subTest(script.name):
-                completed = _run_probe(script)
-                resolved = completed.stdout.strip().splitlines()
                 self.assertTrue(
-                    resolved,
-                    f'probe produced nothing: {completed.stderr[-500:]}',
-                )
-                where = resolved[-1]
-                self.assertFalse(
-                    where.startswith('IMPORT-ERROR'),
-                    f'{script.name}: {where}',
-                )
-                self.assertTrue(
-                    Path(where).is_relative_to(PROJECT_ROOT),
-                    f'{script.name} imports fcc_test_contracts from {where}, '
-                    f'outside this tree. Add the project root to sys.path '
+                    _puts_root_on_path(script),
+                    f'{script.name} never puts {PROJECT_ROOT} on sys.path, so '
+                    f'which fcc_test_contracts it reads depends on how the '
+                    f'package happens to be installed. Insert the project root '
                     f'(or call contract_cli.ensure_importable) — otherwise it '
                     f'publishes or checks an installed copy of what it is '
-                    f'supposed to be reading.',
+                    f'supposed to be reading. Measured 2026-09-05: that is how '
+                    f'a repaired defect came back in a delivered artifact.',
                 )
 
     def test_the_probe_can_actually_fail(self):
@@ -156,14 +183,17 @@ class TestEveryEntryPointResolvesThisTree(unittest.TestCase):
         fail.
         """
         decoy = SCRIPTS / '_probe_decoy_not_a_real_entry_point.py'
-        decoy.write_text('import fcc_test_contracts  # noqa\n', encoding='utf-8')
+        decoy.write_text(
+            "import fcc_test_contracts  # noqa\n"
+            "if __name__ == '__main__':  # entry-point shaped, path-blind\n"
+            "    pass\n",
+            encoding='utf-8',
+        )
         try:
-            completed = _run_probe(decoy)
-            where = completed.stdout.strip().splitlines()[-1]
             self.assertFalse(
-                Path(where).is_relative_to(PROJECT_ROOT),
-                'the probe reaches this tree without the script asking, so the '
-                'assertion above cannot fail and measures nothing',
+                _puts_root_on_path(decoy),
+                'a script that touches sys.path not at all still satisfies the '
+                'assertion above, so that assertion measures nothing',
             )
         finally:
             decoy.unlink(missing_ok=True)
