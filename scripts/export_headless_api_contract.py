@@ -19,8 +19,18 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # same shape as a seal that compares two copies of one document.
 #
 # ⚠️ Its sibling ``export_headless_openapi.py`` already had this line; this one
-# did not, which is why one publisher was correct and the other was not. Six
-# scripts under ``scripts/`` still have the gap — registered as lane debt.
+# did not, which is why one publisher was correct and the other was not.
+#
+# Every entry point under ``scripts/`` was then checked BY RUNNING IT, and the
+# answer was neither "only this one" nor the "six more" an earlier draft of this
+# comment claimed. It was **two**: this file and
+# ``mutation_headless_contract_axis.py``, which put ``scripts/`` and a
+# non-existent ``src/`` on the path but not the root. The rest reach the same
+# result through ``contract_cli.ensure_importable`` — the same job under a
+# different spelling, which is exactly what a grep for one literal cannot see.
+# ⚠️ That wrong count was itself this file's defect class: a check that reads
+# for a spelling answers a different question than the one asked.
+# ``tests/test_scripts_resolve_this_tree.py`` measures it now.
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 SRC_ROOT = PROJECT_ROOT / 'src'

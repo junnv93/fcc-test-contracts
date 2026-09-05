@@ -41,7 +41,11 @@ name = "fcc-test-contracts"
 # 0.1.21  extraction_package 의 고아 문자열 블록을 모듈 docstring 으로 흡수. 아직
 #         태그가 없다 — 소비 레인이 이것을 필요로 하지 않는다(문서 변경). 다음에
 #         이 레인이 태그를 낼 때 이 번호가 나간다.
-version = "0.1.21"
+# 0.1.22  적합성의 feature 축(§6.7 구현) · 측정 job 을 불투명 핸들로 주소 지정 ·
+#         진입점이 자기 트리를 올리는지 실행으로 확인. ⚠️ **wire 파손을 담는다** —
+#         소비 레인은 이 번호로 pin 하기 전에 두 축을 함께 옮겨야 한다
+#         (생성 축 `job_id`→`generation_job_id`, 측정 축 `{job_id}`→`{job_uuid}`).
+version = "0.1.22"
 description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
 # requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
 # (`FROM python:3.11-slim`)에서 파생.
