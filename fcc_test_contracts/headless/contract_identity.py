@@ -32,6 +32,7 @@ __all__ = [
     'contract_identity_digest',
     'feature_scoped_document',
     'feature_scoped_identity',
+    'parse_declared_features',
 ]
 
 
@@ -108,6 +109,32 @@ def _schema_closure(names: set[str], schemas: dict) -> set[str]:
             elif isinstance(node, list):
                 stack.extend(node)
     return reached
+
+
+def parse_declared_features(raw: str) -> list[str]:
+    """A provider's §7.0 declaration as they write it — one list, one parser.
+
+    Commas and newlines both separate, surrounding whitespace is dropped, and
+    empty tokens vanish. Two entry points read this same declaration — one to
+    print the identity digest, one to run the compatibility check — and a
+    provider pastes the same string into both. Two parsers is how the two
+    commands come to disagree about what ``core, measurement-jobs`` means, and
+    the disagreement would surface as a digest mismatch blamed on the contract.
+
+    ⚠️ The empty result is a **declaration**, not a missing one. Required
+    features are in scope whether or not anything is named, so ``--features ''``
+    is the smallest legal declaration — a provider saying *"core only"*. That
+    must never collapse into "the flag was absent", which is the caller's to
+    represent as ``None``: the checker refuses ``--mode declared-features``
+    without a declaration and refuses a declaration in any other mode, and it
+    can only tell the two apart if this function never invents one.
+
+    Lives in the package rather than in ``scripts/`` because ``scripts/`` does
+    not travel inside the wheel — a provider who pinned this lane with ``pip
+    install git+…`` reaches the declaration format only through an import.
+    """
+    tokens = (token.strip() for token in str(raw).replace('\n', ',').split(','))
+    return [token for token in tokens if token]
 
 
 def feature_scoped_document(document: dict, declared_features) -> dict:

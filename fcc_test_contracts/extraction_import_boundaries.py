@@ -52,7 +52,7 @@ from pathlib import Path
 from fcc_test_contracts.common.extraction_lane_policy import ExtractionLanePolicy
 from fcc_test_contracts.common.tree_artifacts import (
     operating_repository_root as _repository_root,
-    resolve_repo_artifact,
+    resolve_operating_artifact,
 )
 
 # ⚠️ **모듈 위치에서 파생하면 안 된다.** 이 모듈은 「자기가 어느 저장소에 있나」가
@@ -81,15 +81,35 @@ def __getattr__(name: str):
         return _project_root()
     if name == 'SRC_ROOT':
         return _project_root() / 'src'
+    if name == 'DEFAULT_MANIFEST':
+        return _default_manifest()
     raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 # Addressed by its repository-relative name and resolved through the packager's
 # own layout record: this lane delivers docs/api/ to artifacts/ at the box root,
 # so a nearest-ancestor walk finds the box's docs/ directory and then looks for a
 # file that is no longer under it. The record answers where it actually went.
-DEFAULT_MANIFEST = resolve_repo_artifact(
-    __file__, 'docs/api/headless_contract_extraction_manifest.v1.json',
-)
+#
+# ⚠️ **The tree asked is the one being operated on, not the one this module was
+# installed from** — the same rule `_project_root` above already follows, and
+# for the same reason. Anchored on `__file__` this constant was correct only
+# while the install happened to sit inside the checkout being read: from
+# `<repo>/fcc_test_env/…/site-packages` the ancestor walk climbs out of the
+# virtualenv and lands on `<repo>` by accident, and from a virtualenv one
+# directory outside any checkout the identical call walks to `/` and answers
+# `/docs/api/…`. Measured 2026-09-05 in both rigs.
+#
+# ⚠️ **Lazy, because resolving it can now raise.** `operating_repository_root`
+# refuses rather than guessing when there is no repository to operate on, and a
+# module-level constant that raises turns that refusal into "this library
+# cannot be imported" — the defect class the note on `_project_root` above
+# names.
+MANIFEST_REPO_PATH = 'docs/api/headless_contract_extraction_manifest.v1.json'
+
+
+@functools.cache
+def _default_manifest() -> Path:
+    return resolve_operating_artifact(MANIFEST_REPO_PATH)
 
 
 def load_policy(manifest_path: Path | None = None) -> ExtractionLanePolicy:
@@ -102,7 +122,7 @@ def load_policy(manifest_path: Path | None = None) -> ExtractionLanePolicy:
     ``scripts.foo``" is a monorepo ownership question, not a question about
     the tree being validated.
     """
-    return ExtractionLanePolicy.from_path(manifest_path or DEFAULT_MANIFEST).bound_to(_project_root())
+    return ExtractionLanePolicy.from_path(manifest_path or _default_manifest()).bound_to(_project_root())
 
 
 def lane_choices(policy: ExtractionLanePolicy | None = None) -> list[str]:
