@@ -34,6 +34,17 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          # ⚠️ **태그가 필요하다** (2026-09-05). 기본 `fetch-depth: 1` 은 태그를 안
+          #    가져오고, 그러면 `tests/test_release_version_is_unclaimed.py` 에서
+          #    「그 번호를 아무도 안 썼다」와 「여기서는 태그가 안 보인다」가 같은 값이
+          #    된다. 그 게이트는 그 상태를 통과가 아니라 skip 으로 다루지만, skip 하는
+          #    게이트는 **가장 필요한 자리에서 안 도는 게이트**다.
+          #
+          #    실측: 두 배송이 각자 `0.1.18 → 0.1.19` 로 올렸고 같은 줄이라 git 이 깨끗이
+          #    병합했다. 먼저 머지된 쪽이 그 태그를 가져갔고 나중 변경은 그 태그에 없다.
+          #    이 저장소에 그것을 재는 검사가 0건이었다.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
