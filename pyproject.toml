@@ -27,7 +27,16 @@ name = "fcc-test-contracts"
 # `0.1.13`, npm 쪽은 `0.1.4` 다. 이번 판올림에서 npm 을 끌어올려 맞추지 **않았다**:
 # 그러면 둘이 보조를 맞춰 온 것처럼 보이게 되고, 갈라진 사실 자체가 사라진다.
 # 위 문장은 지금 산문 주장이지 게이트가 아니다. 소유 웨이브 미정.
-version = "0.1.19"
+# ⚠️ **0.1.19 를 건너뛴 것이 아니라 그 번호가 이미 쓰였다** (2026-09-05).
+# PR #28 과 #29 가 **각자 독립적으로** 0.1.18 → 0.1.19 로 올렸다. 두 브랜치가 같은
+# 줄을 썼으므로 git 이 깨끗이 병합했고 **아무 게이트도 붉지 않았다** — 버전 충돌은
+# 병합 충돌과 모양이 다르다. 먼저 머지된 #29 가 `v0.1.19` 를 자기 머지 커밋에 붙여
+# push 했고, 그래서 그 태그에는 #28 이 들어 있지 않다. 소비 레인이 `v0.1.19` 로 pin
+# 하면 공급 폐포 판정기가 **오지 않는다**.
+#
+# 태그를 옮기지 않는다(이미 소비된 이름을 다시 겨누는 것은 더 나쁘다). 번호를 올려
+# 「지금 main 이 가진 것」에 이름을 준다.
+version = "0.1.20"
 description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
 # requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
 # (`FROM python:3.11-slim`)에서 파생.
