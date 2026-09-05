@@ -15,7 +15,7 @@ roots reach nothing at all, which is why the blanket exemption is slack rather
 than a property of the category.
 
 The staged axis had the mirror-image blind spot:
-``scripts/check_extraction_import_boundaries.py`` contains the string
+``fcc_test_contracts/extraction_import_boundaries.py`` contains the string
 ``composition`` **zero** times, so it does not exempt these files and folds
 them into one integer instead. A count cannot see a swap, and it carries no
 reason — nothing in it distinguishes a root naming a concrete behind an
@@ -763,7 +763,7 @@ class TestTheTwoAxesNameTheSameSites(_AxisCase):
     """G6 — the SSOT unification.
 
     One axis exempts these files entirely; the other has no concept of them
-    (``grep -c composition scripts/check_extraction_import_boundaries.py`` is
+    (``grep -c composition fcc_test_contracts/extraction_import_boundaries.py`` is
     ``0``) and folds them into an integer. Whatever the staged checker reports
     for a file that maps back to a declared composition root must be a site
     this declaration already names — otherwise the two numbers describe
@@ -774,8 +774,14 @@ class TestTheTwoAxesNameTheSameSites(_AxisCase):
     def test_staged_violations_inside_declared_roots_are_declared(self):
         import tempfile
 
-        from check_extraction_import_boundaries import check_import_boundaries
-        from prepare_headless_extraction_package import (
+        # ⚠️ 형제 스크립트 이름이 아니라 **배포되는 패키지 경로**로 부른다. 두 도구의
+        # 알맹이는 `fcc_test_contracts/` 에 살고 `scripts/` 에는 진입점만 남았다 —
+        # 스크립트 이름으로 부르면 그 이름은 형제의 `scripts/` 를 PYTHONPATH 에 얹은
+        # 트리에서만 해소되고, pip 로 이 레인을 받은 소비자에게는 없다.
+        from fcc_test_contracts.extraction_import_boundaries import (
+            check_import_boundaries,
+        )
+        from fcc_test_contracts.extraction_package import (
             build_extraction_plan, stage_extraction_package,
         )
 
