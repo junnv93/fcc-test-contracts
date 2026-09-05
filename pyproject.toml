@@ -36,7 +36,12 @@ name = "fcc-test-contracts"
 #
 # 태그를 옮기지 않는다(이미 소비된 이름을 다시 겨누는 것은 더 나쁘다). 번호를 올려
 # 「지금 main 이 가진 것」에 이름을 준다.
-version = "0.1.20"
+#
+# 0.1.20  공급 폐포 판정기 · 추출 도구 도달성 · 릴리스 번호 게이트 (태그 있음)
+# 0.1.21  extraction_package 의 고아 문자열 블록을 모듈 docstring 으로 흡수. 아직
+#         태그가 없다 — 소비 레인이 이것을 필요로 하지 않는다(문서 변경). 다음에
+#         이 레인이 태그를 낼 때 이 번호가 나간다.
+version = "0.1.21"
 description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
 # requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
 # (`FROM python:3.11-slim`)에서 파생.
