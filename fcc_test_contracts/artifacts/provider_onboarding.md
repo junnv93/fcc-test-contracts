@@ -79,6 +79,32 @@ carrying `checker.mode = "live-subset"` is rejected by name. When you are ready
 to report, §7.2 gives the mode that counts — the same checker, judging you in
 full against the scope you declare.
 
+Not an opinion — the same document, three modes (measured 2026-09-06, on a
+provider that serves `publish_test_plan_draft` and neither door that mints a
+draft):
+
+| mode | verdict | closure violations |
+|---|---|---|
+| `declared-features` | **refused** | one per consumer of `draft_id` |
+| `full` | refused — the two operations are simply absent | **none — the arm does not run here** |
+| `live-subset` | **`compatible: true`, zero issues** | none |
+
+The first two rows both refuse, and they do not refuse the same thing: strip
+the closure out of the first and it still complains that two operations are
+missing. `dependency_closure_violation` is the class **only
+`declared-features` can produce**, and it is the only one that names what is
+actually broken — a draft cannot exist.
+
+`live-subset` admits a surface that publishes test plans and can create none.
+That is the shape of a subset nobody defined: nothing is wrong with any
+operation the provider serves, and the provider still cannot work. Only §7.0 ③
+asks the question that catches it, and it runs in `declared-features` **only**.
+
+⚠️ Read the middle row carefully before assuming `full` is the strict one: it
+is stricter about *presence* and asks nothing about *reachability*. Serving
+everything makes the closure hold trivially, which is why it is not run there —
+not because the surface was judged safe.
+
 ## 4. Consume the artifacts from your frontend
 
 ```console
