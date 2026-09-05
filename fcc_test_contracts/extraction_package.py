@@ -3,25 +3,8 @@
 ⚠️ `scripts/` 는 패키지가 아니라 **휠이 나르지 못한다** — 이 레인을 핀으로
 받는 소비자(모노레포)에게 그 파일은 오지 않는다. 26개 함수 978줄은 이름만
 스크립트였지 실은 라이브러리다. 로직은 여기 살고 `scripts/` 에는 진입점만 남는다.
-"""
-from __future__ import annotations
 
-# ⚠️ 이 상수들은 원본 스크립트에서 왔고 **지울 수 없다** — 여러 함수가 기본
-# 인자로 쓴다(`def f(..., *, root: Path = PROJECT_ROOT)`).
-#
-# ⚠️ 이 파생은 **여기서 하지 않는다** — 경계 검사기
-# (`fcc_test_contracts.extraction_import_boundaries`)도 같은 질문을 하고, 열두 줄을
-# 두 벌 두면 그 사본이 갈라진다. 사유(설치본에서 `parents[1]` 은 `site-packages` 이고
-# 그 상태가 「경로가 맞다」와 같은 모양이라는 것)는 그 함수의 docstring 에 있다.
-from fcc_test_contracts.common.tree_artifacts import (  # noqa: E402
-    operating_repository_root as _repository_root,
-)
-
-
-PROJECT_ROOT = _repository_root()
-SRC_ROOT = PROJECT_ROOT / 'src'
-
-"""Validate and optionally stage files from the headless extraction manifest.
+Validate and optionally stage files from the headless extraction manifest.
 
 Two shapes of relocation exist, and the difference is deliberate:
 
@@ -40,6 +23,17 @@ relocation speak in the same unit, so totality is structural rather than
 clerical. ``OwnershipRule`` already reads a trailing ``/`` as a directory
 prefix, so this reuses an existing meaning rather than inventing one.
 """
+from __future__ import annotations
+
+# ⚠️ 이 파생은 **여기서 하지 않는다** — 경계 검사기
+# (`fcc_test_contracts.extraction_import_boundaries`)도 같은 질문을 하고, 열두 줄을
+# 두 벌 두면 그 사본이 갈라진다. 사유(설치본에서 `parents[1]` 은 `site-packages` 이고
+# 그 상태가 「경로가 맞다」와 같은 모양이라는 것)는 그 함수의 docstring 에 있다.
+from fcc_test_contracts.common.tree_artifacts import (  # noqa: E402
+    operating_repository_root as _repository_root,
+)
+
+
 import argparse
 import ast
 import functools
@@ -63,6 +57,32 @@ DEFAULT_MANIFEST = resolve_repo_artifact(
 PYTHON_RELOCATION_KINDS = ('python_module', 'python_package')
 LANE_TEST_SUITE_KIND = _LANE_TEST_SUITE_KIND
 SHARED_KERNEL_CLOSURE_KIND = _SHARED_KERNEL_CLOSURE_KIND
+
+
+# ⚠️ **import 시점에 부르지 않는다** (2026-09-05). 이 모듈은 휠에 실려 설치되므로
+# 저장소 밖에서 import 될 수 있고, 그때 모듈 상수가 예외를 던지면 「이 라이브러리는
+# import 조차 안 된다」가 된다 — 이 파일이 `scripts/` 를 떠난 이유와 **같은 계급**의
+# 결함이다. 실측: 격리 venv 에 설치해 import 하자 그 자리에서 죽었다.
+#
+# 옛 주석은 이 상수를 «여러 함수가 기본 인자로 써서 지울 수 없다» 고 적었다. 실측하니
+# 기본 인자는 `_import_rewrite_map` **한 곳**뿐이고 나머지는 전부 함수 본문이다 —
+# 그 한 곳을 `None` 기본값으로 바꾸면 지연이 성립한다.
+#
+# 이름 `PROJECT_ROOT`/`SRC_ROOT` 는 아래 `__getattr__`(PEP 562)이 그대로 제공한다.
+@functools.cache
+def _project_root():
+    return _repository_root()
+
+
+def __getattr__(name: str):
+    """PEP 562 — `PROJECT_ROOT`/`SRC_ROOT` 를 **읽는 순간** 파생한다."""
+    if name == 'PROJECT_ROOT':
+        return _project_root()
+    if name == 'SRC_ROOT':
+        return _project_root() / 'src'
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
+
+
 def _lane_policy(manifest: dict):
     """Policy bound to ``manifest``, imported the way this file already does.
 
@@ -164,7 +184,7 @@ def build_extraction_plan(
                 # policy, so the parity invariant cannot re-derive it
                 # differently.
                 consumed=_lane_policy(manifest).consumed_for_lane(
-                    PROJECT_ROOT, repo_name, CONSUMED_BASIS_DELIVERY, planned=entries,
+                    _project_root(), repo_name, CONSUMED_BASIS_DELIVERY, planned=entries,
                 ),
                 already_planned=tuple(item['current_path'] for item in entries),
             )
@@ -234,7 +254,7 @@ def _plan_entry(
         )
 
     if not current_path.endswith('/'):
-        source = PROJECT_ROOT / current_path
+        source = _project_root() / current_path
         if not source.exists():
             return [], [_issue('missing_source', issue_path, f'missing source: {current_path}')]
         if _violates_forbidden(repo_name, current_path, manifest):
@@ -285,8 +305,8 @@ def _expand_lane_test_suite(
 
     planned: list[dict] = []
     issues: list[dict] = []
-    for rel in policy.tests_for_lane(PROJECT_ROOT, repo_name):
-        source = PROJECT_ROOT / rel
+    for rel in policy.tests_for_lane(_project_root(), repo_name):
+        source = _project_root() / rel
         if not source.is_file():
             continue
         if _violates_forbidden(repo_name, rel, manifest):
@@ -321,11 +341,11 @@ def _expand_lane_test_suite(
     planned_paths = set(already_planned)
     planned_paths.update(item['current_path'] for item in planned)
     for rel in policy.test_runtime_support_for_lane(
-        PROJECT_ROOT,
+        _project_root(),
         repo_name,
         already_planned=tuple(sorted(planned_paths)),
     ):
-        source = PROJECT_ROOT / rel
+        source = _project_root() / rel
         if not source.is_file() or rel in planned_paths:
             continue
         if _violates_forbidden(repo_name, rel, manifest):
@@ -389,7 +409,7 @@ def _expand_shared_kernel_closure(
 
     planned: list[dict] = []
     issues: list[dict] = []
-    for rel in policy.shared_kernel_closure_for_lane(PROJECT_ROOT, repo_name, consumed):
+    for rel in policy.shared_kernel_closure_for_lane(_project_root(), repo_name, consumed):
         # ⚠️ The closure spans EVERY shared-kernel root, and this entry names
         # ONE of them. Without this filter the destination arithmetic below
         # (``rel[len(current_path):]``) is applied to paths that do not start
@@ -399,7 +419,7 @@ def _expand_shared_kernel_closure(
         # had two (2026-08-28, src/application/central_contract/).
         if not rel.startswith(current_path):
             continue
-        source = PROJECT_ROOT / rel
+        source = _project_root() / rel
         if not source.is_file():
             continue
         if _violates_forbidden(repo_name, rel, manifest):
@@ -441,7 +461,7 @@ def _expand_directory_entry(
     leaves; only exclusions (build output, caches, installed dependencies) may
     subtract from it.
     """
-    source_dir = PROJECT_ROOT / current_path.rstrip('/')
+    source_dir = _project_root() / current_path.rstrip('/')
     if not source_dir.is_dir():
         return [], [_issue(
             'missing_source', issue_path, f'missing source directory: {current_path}',
@@ -454,7 +474,7 @@ def _expand_directory_entry(
     issues: list[dict] = []
     tracked = tracked_source_paths()
     for source in _walk_files(source_dir, policy):
-        rel = source.relative_to(PROJECT_ROOT).as_posix()
+        rel = source.relative_to(_project_root()).as_posix()
         if rel not in tracked:
             # Trackedness is asked first, and it is the only filter here that
             # is silent by design. The declaration is the *tree*; a file git
@@ -531,12 +551,12 @@ def tracked_source_paths() -> frozenset[str]:
     """
     try:
         completed = subprocess.run(
-            ['git', '-C', str(PROJECT_ROOT), 'ls-files', '-z'],
+            ['git', '-C', str(_project_root()), 'ls-files', '-z'],
             capture_output=True, text=True, check=True,
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise TrackedSourcesUnavailable(
-            f'git could not list tracked files under {PROJECT_ROOT}: {exc}'
+            f'git could not list tracked files under {_project_root()}: {exc}'
         ) from exc
     paths = frozenset(entry for entry in completed.stdout.split('\0') if entry)
     if not paths:
@@ -546,7 +566,7 @@ def tracked_source_paths() -> frozenset[str]:
         # rejects everything, because the latter reads downstream as an
         # empty_directory_relocation and sends the author hunting the manifest.
         raise TrackedSourcesUnavailable(
-            f'git listed no tracked files under {PROJECT_ROOT}'
+            f'git listed no tracked files under {_project_root()}'
         )
     return paths
 def _walk_files(source_dir: Path, policy) -> list[Path]:
@@ -558,7 +578,7 @@ def _walk_files(source_dir: Path, policy) -> list[Path]:
     """
     collected: list[Path] = []
     for current, dirnames, filenames in os.walk(source_dir):
-        rel_dir = Path(current).relative_to(PROJECT_ROOT).as_posix()
+        rel_dir = Path(current).relative_to(_project_root()).as_posix()
         dirnames[:] = sorted(
             name for name in dirnames
             if not policy.is_excluded_dir(f'{rel_dir}/{name}')
@@ -585,7 +605,7 @@ def stage_extraction_package(plan: dict, target_root: Path) -> list[dict]:
     layouts: dict[str, dict[str, str]] = {}
     for repo_name, entries in plan['packages'].items():
         for entry in entries:
-            source = PROJECT_ROOT / entry['current_path']
+            source = _project_root() / entry['current_path']
             destination = root / repo_name / entry['future_path']
             _assert_under_root(destination, root)
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -667,7 +687,7 @@ def _top_level_packages(repo_root: Path, paths: dict[str, str]) -> set[Path]:
         if tail and (repo_root / head).is_dir():
             roots.add(repo_root / head)
     return roots
-def _import_rewrite_map(manifest: dict, *, root: Path = PROJECT_ROOT) -> dict[str, str]:
+def _import_rewrite_map(manifest: dict, *, root: Path | None = None) -> dict[str, str]:
     """Module **and package** renames declared by every lane, longest key first.
 
     Scoping this to the packaged lane is what left a staged platform tree
@@ -704,7 +724,9 @@ def _import_rewrite_map(manifest: dict, *, root: Path = PROJECT_ROOT) -> dict[st
             future_module = _module_name_from_path(entry.get('future_path', ''))
             if current_module and future_module and current_module != future_module:
                 rewrites[current_module] = future_module
-    rewrites.update(_package_rewrite_keys(manifest, root=root))
+    # ⚠️ 기본값이 `None` 인 것은 **지연 파생** 때문이다 — 옛 형태
+    # (`root: Path = PROJECT_ROOT`)는 이 모듈을 저장소 밖에서 import 조차 못 하게 했다.
+    rewrites.update(_package_rewrite_keys(manifest, root=root or _project_root()))
     return dict(sorted(rewrites.items(), key=lambda item: len(item[0]), reverse=True))
 def _package_rewrite_keys(manifest: dict, *, root: Path) -> dict[str, str]:
     """Package-level renames whose totality the filesystem can vouch for.
@@ -881,7 +903,7 @@ def _assert_under_root(path: Path, root: Path) -> None:
         raise ValueError(f'destination escapes target root: {path}') from exc
 def _relative(path: Path) -> str:
     try:
-        return path.resolve(strict=False).relative_to(PROJECT_ROOT).as_posix()
+        return path.resolve(strict=False).relative_to(_project_root()).as_posix()
     except ValueError:
         return str(path)
 def _issue(code: str, path: str, message: str) -> dict:

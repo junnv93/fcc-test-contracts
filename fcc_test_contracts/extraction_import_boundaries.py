@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import functools
 import json
 import os
 from pathlib import Path
@@ -59,8 +60,28 @@ from fcc_test_contracts.common.tree_artifacts import (
 # 정책을 묶고, 그 묶음이 *"누가 `scripts.foo` 를 소유하나"* 에 답하게 하기 때문이다.
 # 사유는 `operating_repository_root` 의 docstring 에 있다(설치본에서 `parents[1]` 은
 # `site-packages` 이고, 그 상태는 「경로가 맞다」와 같은 모양이다).
-PROJECT_ROOT = _repository_root()
-SRC_ROOT = PROJECT_ROOT / 'src'
+#
+# ⚠️ **import 시점에 부르지 않는다.** 원본은 스크립트였고 스크립트는 늘 저장소 안에서
+# 도니 그 차이가 보이지 않았다. 이제 이 모듈은 **휠에 실려 설치된다** — 저장소 밖에서
+# import 될 수 있고, 그때 모듈 상수가 예외를 던지면 「이 라이브러리는 import 조차
+# 안 된다」가 된다. 그것은 이 이관이 없애려는 결함과 **같은 계급**이다(실측 2026-09-05:
+# 격리 venv 에 설치해 import 하자 그 자리에서 죽었다).
+#
+# 필요한 순간에 파생하고 결과를 캐시한다. 이름 `PROJECT_ROOT` 는 아래 `__getattr__`
+# (PEP 562)이 그대로 제공한다 — 원본 스크립트의 표면을 잃지 않으면서 값의 계산만
+# 미룬다.
+@functools.cache
+def _project_root() -> Path:
+    return _repository_root()
+
+
+def __getattr__(name: str):
+    """PEP 562 — `PROJECT_ROOT`/`SRC_ROOT` 를 **읽는 순간** 파생한다."""
+    if name == 'PROJECT_ROOT':
+        return _project_root()
+    if name == 'SRC_ROOT':
+        return _project_root() / 'src'
+    raise AttributeError(f'module {__name__!r} has no attribute {name!r}')
 
 # Addressed by its repository-relative name and resolved through the packager's
 # own layout record: this lane delivers docs/api/ to artifacts/ at the box root,
@@ -81,7 +102,7 @@ def load_policy(manifest_path: Path | None = None) -> ExtractionLanePolicy:
     ``scripts.foo``" is a monorepo ownership question, not a question about
     the tree being validated.
     """
-    return ExtractionLanePolicy.from_path(manifest_path or DEFAULT_MANIFEST).bound_to(PROJECT_ROOT)
+    return ExtractionLanePolicy.from_path(manifest_path or DEFAULT_MANIFEST).bound_to(_project_root())
 
 
 def lane_choices(policy: ExtractionLanePolicy | None = None) -> list[str]:
@@ -276,7 +297,7 @@ def _top_level_names(root: Path, policy: ExtractionLanePolicy) -> set[str]:
             names.add(child.name)
         elif child.suffix == '.py':
             names.add(child.stem)
-    for entry_root in policy.entry_point_roots(PROJECT_ROOT):
+    for entry_root in policy.entry_point_roots(_project_root()):
         entry_dir = root / entry_root.rstrip('/')
         if not entry_dir.is_dir():
             continue
@@ -339,7 +360,7 @@ def _resolves_via_entry_point_root(
     an entry point is a fact about the source tree, and the staged copy is not
     required to carry the ``__init__.py`` that evidences it.
     """
-    for entry_root in policy.entry_point_roots(PROJECT_ROOT):
+    for entry_root in policy.entry_point_roots(_project_root()):
         entry_dir = root / entry_root.rstrip('/')
         if entry_dir.is_dir() and _module_resolves_locally(entry_dir, module):
             return True
