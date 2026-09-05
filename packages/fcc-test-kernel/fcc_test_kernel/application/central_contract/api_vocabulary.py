@@ -20,7 +20,13 @@ from fcc_test_kernel.domain.models.reference_catalog import (
 )
 from fcc_test_kernel.domain.models.sample_inventory import INTAKE_FIELDS, SAMPLE_EDITABLE_FIELDS, SampleStatus
 from fcc_test_kernel.domain.services.chamber_mode_policy import ChamberModeVerdict
-from fcc_test_kernel.domain.services.project_metadata_edit import EDITABLE_PROJECT_META_FIELDS
+from fcc_test_kernel.domain.services.project_metadata_edit import (
+    APPLICANT_IDENTITY_FIELD,
+    APPLICANT_SUGGESTION_FIELDS,
+    CREATE_PROJECT_IDENTITY_FIELD,
+    CREATE_PROJECT_REQUIRED_FIELDS,
+    EDITABLE_PROJECT_META_FIELDS,
+)
 from fcc_test_kernel.domain.services.reference_scope_policy import ReferenceScopeKind
 from fcc_test_kernel.domain.services.test_equipment_list_policy import (
     ITEM_PERSISTED_FIELDS,
@@ -80,12 +86,62 @@ _EQUIPMENT_ITEM_TEXT_FIELDS: tuple[str, ...] = tuple(
 )
 
 
-# W3 백엔드 — PATCH body 의 property 집합은 도메인 정책 SSOT 튜플에서 파생한다
-# (필드 목록을 스키마에 다시 적으면 SSOT 가 둘이 되어 drift 한다). 선언 순서를
-# 그대로 써 OpenAPI 출력이 결정적이다.
-_UPDATE_PROJECT_PROPERTIES: dict = {
+# W3 백엔드 — 프로젝트 표지 메타의 property 집합은 도메인 정책 SSOT 튜플에서
+# 파생한다 (필드 목록을 스키마에 다시 적으면 SSOT 가 둘이 되어 drift 한다).
+# 선언 순서를 그대로 써 OpenAPI 출력이 결정적이다.
+#
+# 2026-09-04 — 파생 범위를 PATCH body 하나에서 **프로젝트 표면 전체**로 넓혔다.
+# 그전까지 PATCH 만 파생이고 ProjectEnvelope / ProjectDetailEnvelope /
+# CreateProjectRequest 는 같은 필드를 손으로 다시 적고 있었다 — 즉 SSOT 가 이미
+# 넷으로 쪼개져 있었고, ``customer`` 폐기가 그 사실을 드러냈다(한 곳만 고치면
+# 나머지 셋이 조용히 옛 필드를 계속 광고한다).
+_PROJECT_META_PROPERTIES: dict = {
     field: {'type': 'string', 'nullable': True}
     for field in EDITABLE_PROJECT_META_FIELDS
+}
+
+#: PATCH body — 표지 메타 전체가 optional-nullable (키 부재=무변경, null=삭제).
+_UPDATE_PROJECT_PROPERTIES: dict = dict(_PROJECT_META_PROPERTIES)
+
+#: 응답 envelope 의 메타 property. 파생값 ``fcc_id`` 는 저장되지 않는 계산 결과라
+#: 편집 필드 집합에 없으므로 여기서 명시적으로 더한다(응답에만 존재한다는 사실이
+#: 이 한 줄로 드러난다).
+_PROJECT_ENVELOPE_META_PROPERTIES: dict = {
+    **_PROJECT_META_PROPERTIES,
+    'fcc_id': {'type': 'string', 'nullable': True},
+}
+
+#: POST body property. 필수 칸은 **nullable 이 아니고** 빈 문자열도 허용하지 않는다
+#: (``minLength: 1``) — 도메인 파서가 공백 문자열을 ``None`` 으로 정규화한 뒤 필수
+#: 위반으로 거절하므로, 스키마도 같은 것을 말해야 계약과 런타임이 어긋나지 않는다.
+_CREATE_PROJECT_PROPERTIES: dict = {
+    CREATE_PROJECT_IDENTITY_FIELD: {'type': 'string', 'minLength': 1},
+    **{
+        field: (
+            {'type': 'string', 'minLength': 1}
+            if field in CREATE_PROJECT_REQUIRED_FIELDS
+            else {'type': 'string', 'nullable': True}
+        )
+        for field in EDITABLE_PROJECT_META_FIELDS
+    },
+}
+
+#: POST 필수 칸 — 도메인 SSOT 를 그대로 싣는다(OpenAPI ``required``).
+_CREATE_PROJECT_REQUIRED: list = list(CREATE_PROJECT_REQUIRED_FIELDS)
+
+#: 신청자 제안 envelope 의 property. 자동 채움 대상 칸은 도메인이 유일성에서
+#: 파생하고(``APPLICANT_SUGGESTION_FIELDS``), 여기에 선택 근거로 쓰이는 집계
+#: ``project_count`` 를 더한다. 식별 칸은 제안이 성립하기 위한 전제이므로 required.
+_APPLICANT_SUGGESTION_PROPERTIES: dict = {
+    **{
+        field: (
+            {'type': 'string'}
+            if field == APPLICANT_IDENTITY_FIELD
+            else {'type': 'string', 'nullable': True}
+        )
+        for field in APPLICANT_SUGGESTION_FIELDS
+    },
+    'project_count': {'type': 'integer'},
 }
 
 

@@ -14,8 +14,13 @@ from fcc_test_kernel.application.central_contract.api_operation_factory import (
 )
 from fcc_test_kernel.application.central_contract.api_vocabulary import (
     PLATFORM_NEXT_CURSOR_HEADER,
+    _APPLICANT_SUGGESTION_PROPERTIES,
+    _CREATE_PROJECT_PROPERTIES,
+    _CREATE_PROJECT_REQUIRED,
+    _PROJECT_ENVELOPE_META_PROPERTIES,
     _UPDATE_PROJECT_PROPERTIES,
 )
+from fcc_test_kernel.domain.services.project_metadata_edit import APPLICANT_IDENTITY_FIELD
 from fcc_test_contracts.common.access_policy import API_PERMISSION_AUTHENTICATED
 
 #: 이 모듈이 소유하는 route path prefix. 분할은 **선언이 아니라 판정 대상**이다 —
@@ -25,6 +30,13 @@ from fcc_test_contracts.common.access_policy import API_PERMISSION_AUTHENTICATED
 #: 판정한다. 새 엔드포인트가 어느 모듈로 가야 하는지 사람이 기억하지 않는다.
 SURFACE_PREFIXES: tuple[str, ...] = (
     '/platform/projects',
+    # 신청자 디렉터리(2026-09-04). ``/platform/projects/applicants`` 로 두지 않는
+    # 이유는 두 가지다: (1) 그 경로는 ``/platform/projects/{project_id}`` 와 형태가
+    # 같아 'applicants' 라는 project_id 와 계약상 구분되지 않는다, (2) 신청자는
+    # 프로젝트의 **하위 자원이 아니다** — 프로젝트들 사이에 걸쳐 재사용되는 독립
+    # 디렉터리이므로 URL 도 그렇게 말해야 한다. 이 표면이 소유하는 이유는 그 값이
+    # 프로젝트 행에서 파생되기 때문이다(별도 마스터 테이블 없음).
+    '/platform/applicants',
 )
 
 
@@ -80,6 +92,11 @@ ROUTES: dict[str, tuple[str, str]] = {
     # so there is no client-supplied status value to validate.
     'complete_project': ('POST', '/platform/projects/{project_id}/complete'),
     'reopen_project': ('POST', '/platform/projects/{project_id}/reopen'),
+    # 신청자 디렉터리(2026-09-04) — 생성 폼의 신청자 자동 채움 원천. 프로젝트 행에서
+    # 파생되는 읽기 전용 조회라 쓰기 짝이 없다(신청자 마스터 테이블을 신설하면
+    # 프로젝트가 든 값과 마스터 값이 갈라지는 이중화가 생긴다 — 그 값이 이미
+    # 프로젝트에 있으므로 파생이 옳다).
+    'list_applicants': ('GET', '/platform/applicants'),
 }
 
 
@@ -125,6 +142,11 @@ PERMISSIONS: dict[str, str] = {
     # 미러링한다 — 새 정책이 아니고 신규 grantable 토큰도 0이라 rbac_role_grants ↔
     # permissions.ts ↔ Keycloak realm bijection 이 무변경이다.
     'update_project': 'platform:admin',
+    # 신청자 디렉터리 — 프로젝트 디렉터리와 **같은 인가 클래스**다. 생성 폼이 부르는
+    # 조회이고, 생성 자체가 'authenticated' 이므로 이것만 더 좁히면 신규 시험원이
+    # 자동 채움 없이 손으로 다시 타이핑하게 된다(프로젝트 목록에서 이미 보이는
+    # 신청자명을 감추는 셈이라 실질적인 보호도 아니다).
+    'list_applicants': API_PERMISSION_AUTHENTICATED,
 }
 
 
@@ -140,6 +162,11 @@ OPERATION_QUERY: dict[str, tuple[str, ...]] = {
     # claims. No technology facet (memberships are project-scoped, not
     # tech-scoped) — would be a meaningless filter.
     'list_project_memberships': ('limit', 'cursor'),
+    # 신청자 디렉터리 — 타이핑에 따라 좁히는 ``q`` + 상한 ``limit``. cursor 는 없다:
+    # 이 조회는 **자동완성 제안**이라 상위 N 건이 전부이고, 페이지를 넘겨 가며 읽는
+    # 화면이 아니다. 없는 페이지네이션을 계약에 두면 클라이언트가 그것을 믿고
+    # 만들어 낼 UI 가 실제로는 서버에 없다.
+    'list_applicants': ('q', 'limit'),
 }
 
 
@@ -183,6 +210,9 @@ SCHEMAS: dict[str, dict] = {
         'type': 'array',
         'items': {'$ref': '#/schemas/ProjectEnvelope'},
     },
+    # 표지 메타 property 는 도메인 SSOT 파생(``_PROJECT_ENVELOPE_META_PROPERTIES``).
+    # 여기에 손으로 다시 나열하면 편집 필드가 바뀌어도 응답 스키마만 옛 목록을
+    # 광고한다 — ``customer`` 폐기가 정확히 그 형태의 결함이었다.
     'ProjectEnvelope': {
         'type': 'object',
         'required': ['project_id', 'project_code', 'model_name', 'sample_count'],
@@ -190,16 +220,8 @@ SCHEMAS: dict[str, dict] = {
             'project_id': {'type': 'string'},
             'project_code': {'type': 'string'},
             'model_name': {'type': 'string'},
-            'customer': {'type': 'string', 'nullable': True},
-            'manufacturer': {'type': 'string', 'nullable': True},
-            'management_number': {'type': 'string', 'nullable': True},
             'status': {'type': 'string', 'nullable': True},
-            'fcc_grantee_code': {'type': 'string', 'nullable': True},
-            'applicant_name': {'type': 'string', 'nullable': True},
-            'applicant_address': {'type': 'string', 'nullable': True},
-            'eut_description': {'type': 'string', 'nullable': True},
-            'test_standard': {'type': 'string', 'nullable': True},
-            'fcc_id': {'type': 'string', 'nullable': True},
+            **_PROJECT_ENVELOPE_META_PROPERTIES,
             'sample_count': {'type': 'integer'},
         },
         'additionalProperties': False,
@@ -265,16 +287,8 @@ SCHEMAS: dict[str, dict] = {
             'project_id': {'type': 'string'},
             'project_code': {'type': 'string'},
             'model_name': {'type': 'string'},
-            'customer': {'type': 'string', 'nullable': True},
-            'manufacturer': {'type': 'string', 'nullable': True},
-            'management_number': {'type': 'string', 'nullable': True},
             'status': {'type': 'string', 'nullable': True},
-            'fcc_grantee_code': {'type': 'string', 'nullable': True},
-            'applicant_name': {'type': 'string', 'nullable': True},
-            'applicant_address': {'type': 'string', 'nullable': True},
-            'eut_description': {'type': 'string', 'nullable': True},
-            'test_standard': {'type': 'string', 'nullable': True},
-            'fcc_id': {'type': 'string', 'nullable': True},
+            **_PROJECT_ENVELOPE_META_PROPERTIES,
             'created_at': {'type': 'string'},
             'samples': {
                 'type': 'array',
@@ -283,22 +297,22 @@ SCHEMAS: dict[str, dict] = {
         },
         'additionalProperties': False,
     },
-    # POST body — model_name 만 필수(ADR-0017 D1, project_code==model name). customer/
-    # manufacturer optional. sample 은 측정 시점 지정(Phase 3)이라 생성 body 에 없다.
+    # POST body (2026-09-04 개정) — 필수 칸은 도메인 SSOT
+    # ``CREATE_PROJECT_REQUIRED_FIELDS`` 파생이다. 이전에는 ``model_name`` 하나만
+    # 필수여서 번호도 신청자도 없는 프로젝트가 만들어질 수 있었고, 그런 프로젝트는
+    # 성적서 번호를 만들 수 없으며(관리번호가 재료다) 이름 말고는 검색으로 찾을
+    # 방법도 없었다 — 즉 "만들 수는 있지만 워크플로우가 이어지지 않는" 상태였다.
+    # 필수 판정을 계약·서버·화면이 **같은 튜플**에서 파생하므로 셋 중 하나만 느슨한
+    # 경우가 생기지 않는다.
+    #
+    # 성적서 스테이지 칸(grantee code / EUT / 규격)은 여기서도 **받는다**. 화면이
+    # 묻지 않을 뿐 계약을 좁히지는 않는다 — 값을 이미 아는 이관 도구가 한 번에
+    # 실어 보낼 수 있어야 하고, 스테이지는 화면 배치이지 권한이 아니다.
+    # sample 은 측정 시점 지정(Phase 3)이라 생성 body 에 없다.
     'CreateProjectRequest': {
         'type': 'object',
-        'required': ['model_name'],
-        'properties': {
-            'model_name': {'type': 'string', 'minLength': 1},
-            'customer': {'type': 'string', 'nullable': True},
-            'manufacturer': {'type': 'string', 'nullable': True},
-            'management_number': {'type': 'string', 'nullable': True},
-            'fcc_grantee_code': {'type': 'string', 'nullable': True},
-            'applicant_name': {'type': 'string', 'nullable': True},
-            'applicant_address': {'type': 'string', 'nullable': True},
-            'eut_description': {'type': 'string', 'nullable': True},
-            'test_standard': {'type': 'string', 'nullable': True},
-        },
+        'required': _CREATE_PROJECT_REQUIRED,
+        'properties': _CREATE_PROJECT_PROPERTIES,
         'additionalProperties': False,
     },
     # PATCH body — 성적서 표지 메타 부분 편집(W3 백엔드). required 없음: 보낸 키만
@@ -309,6 +323,26 @@ SCHEMAS: dict[str, dict] = {
     'UpdateProjectRequest': {
         'type': 'object',
         'properties': _UPDATE_PROJECT_PROPERTIES,
+        'additionalProperties': False,
+    },
+    # 신청자 디렉터리(2026-09-04) — 생성 폼 자동 채움의 원천.
+    #
+    # **파생 조회이지 마스터 레코드가 아니다.** 신청자별 최신 프로젝트 행 하나를
+    # 골라 돌려준다(같은 신청자를 여러 번 쓴 경우 마지막에 쓴 주소/제조사가 가장
+    # 그럴듯한 기본값이다). 그래서 ``applicant_id`` 같은 식별자가 없다 — 만들면
+    # 프로젝트에 든 값과 별도 마스터 값이 갈라지고, 어느 쪽이 진실인지 묻는 질문이
+    # 새로 생긴다.
+    #
+    # ``project_count`` 는 선택 근거다: 같은 이름이 여러 표기로 존재할 때 어느 쪽이
+    # 실제로 쓰이는 표기인지 사용자가 판단할 수 있어야 한다.
+    'ApplicantSuggestionList': {
+        'type': 'array',
+        'items': {'$ref': '#/schemas/ApplicantSuggestionEnvelope'},
+    },
+    'ApplicantSuggestionEnvelope': {
+        'type': 'object',
+        'required': [APPLICANT_IDENTITY_FIELD, 'project_count'],
+        'properties': _APPLICANT_SUGGESTION_PROPERTIES,
         'additionalProperties': False,
     },
     'ProjectCoverageList': {
@@ -469,6 +503,11 @@ OPERATIONS: dict[str, dict] = {
             '404': _PROJECT_NOT_FOUND_404,
             '409': _PROJECT_IDENTIFIER_CONFLICT_409,
         },
+    ),
+    'list_applicants': _operation(
+        request=None,
+        response='ApplicantSuggestionList',
+        permission=PERMISSIONS['list_applicants'],
     ),
     'get_project_coverage': _operation(
         request=None,
