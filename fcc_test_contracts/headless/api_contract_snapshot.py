@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from dataclasses import field
 
 from fcc_test_contracts.headless.api_contract_constants import (API_COMPATIBILITY_MAJOR, API_CONTRACT_VERSION, DEFAULT_PROVIDER_METADATA)
-from fcc_test_contracts.headless.api_contract_surfaces import (HEADLESS_API_OPERATIONS, HEADLESS_API_ROUTES, HEADLESS_API_SCHEMAS)
+from fcc_test_contracts.headless.api_contract_surfaces import (HEADLESS_API_FEATURES, HEADLESS_API_OPERATIONS, HEADLESS_API_ROUTES, HEADLESS_API_SCHEMAS)
 
 
 @dataclass(frozen=True)
@@ -22,6 +22,14 @@ class ApiContractSnapshot:
     schemas: dict[str, dict] = field(
         default_factory=lambda: _copy_contract_dict(HEADLESS_API_SCHEMAS)
     )
+    #: feature_id -> {required, description}. Which operations belong to which
+    #: feature is NOT repeated here — it is on the operations, and
+    #: ``feature_operations()`` derives the grouping. What this block adds is
+    #: the property a provider cannot derive from membership: whether the
+    #: feature may be declined at all.
+    features: dict[str, dict] = field(
+        default_factory=lambda: _copy_contract_dict(HEADLESS_API_FEATURES)
+    )
 
     def to_dict(self) -> dict:
         return {
@@ -34,6 +42,7 @@ class ApiContractSnapshot:
             },
             'operations': self.operations,
             'schemas': self.schemas,
+            'features': self.features,
         }
 
 

@@ -73,7 +73,10 @@ HEADLESS_API_PERMISSION_DESCRIPTIONS: dict[str, str] = {
 # future non-integer path param cannot silently get the wrong type. Schema
 # fragments are JSON-Schema 2020-12 compatible (OpenAPI 3.1 component reuse).
 HEADLESS_API_PATH_PARAMS: dict[str, dict] = {
-    'job_id': {'type': 'integer', 'minimum': 1},
+    # ⚠️ The measurement job is addressed by its opaque handle, never by the
+    # storage primary key (2026-09-05). ``path_identifier_policy`` carries the
+    # standards this follows and refuses a NEW numeric identifier at import.
+    'job_uuid': {'type': 'string', 'minLength': 1},
     'session_id': {'type': 'integer', 'minimum': 1},
     'request_id': {'type': 'integer', 'minimum': 1},
     # Test-plan draft path params (IMPL-1, 2026-06-03). project_id/draft_id are

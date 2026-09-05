@@ -74,9 +74,14 @@ class TestHeadlessApiContracts(unittest.TestCase):
             snapshot['routes']['provider_capabilities'],
             {'method': 'GET', 'path': '/headless/capabilities'},
         )
+        # ⚠️ ``{job_uuid}``, not ``{job_id}`` (2026-09-05). The measurement job
+        # is addressed by its opaque handle; the route used to take the storage
+        # primary key, which no response declared under that name, which is
+        # AUTOINCREMENT (so its value is the lab's job count), and which is not
+        # unique across providers. See ``path_identifier_policy``.
         self.assertEqual(
             snapshot['routes']['get_measurement_job'],
-            {'method': 'GET', 'path': '/headless/jobs/{job_id}'},
+            {'method': 'GET', 'path': '/headless/jobs/{job_uuid}'},
         )
         self.assertEqual(
             snapshot['routes']['list_session_results'],
@@ -161,6 +166,10 @@ class TestHeadlessApiContracts(unittest.TestCase):
         )
 
         self.assertEqual(HealthCheckResponse().to_dict(), {'status': 'ok'})
+        # ⚠️ ``id`` is now one of the internal fields this DTO drops, which is
+        # exactly what this test is about — the storage primary key is not part
+        # of the external shape. It used to be, alongside ``job_uuid``, leaving
+        # a consumer to guess which of the two addressed the resource.
         submitted = MeasurementJobSubmitted.from_row({
             'id': 7,
             'status': 'queued',
@@ -172,15 +181,14 @@ class TestHeadlessApiContracts(unittest.TestCase):
         self.assertEqual(
             submitted.to_dict(),
             {
-                'id': 7,
+                'job_uuid': 'uuid-7',
                 'status': 'queued',
                 'excel_path': 'plan.xlsx',
-                'job_uuid': 'uuid-7',
             },
         )
         self.assertEqual(
-            StopMeasurementJobResponse(job_id=7).to_dict(),
-            {'job_id': 7, 'stop_requested': True},
+            StopMeasurementJobResponse(job_uuid='uuid-7').to_dict(),
+            {'job_uuid': 'uuid-7', 'stop_requested': True},
         )
         self.assertEqual(
             CancelReportAutomationResponse(request_id=9).to_dict(),

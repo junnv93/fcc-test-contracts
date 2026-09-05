@@ -357,14 +357,25 @@ class TestTheContractPackageDoesNotGrow(unittest.TestCase):
     #: Measured 2026-08-29. Lower this when a module shrinks; raising it is the
     #: change this test exists to make someone argue for.
     LINE_BUDGET = {
+        # 2026-09-05 상향 1889 → 1926 (feature 축). 코드가 아니라 **근거가 늘었다** —
+        # 늘어난 37 줄 중 실제 선언은 19 줄(이 표면이 가진 operation 19 개의
+        # `feature=` 한 줄씩)이고 나머지 18 줄은 생성 축 `job_id` →
+        # `generation_job_id` 개명의 사유 주석이다.
+        # 그 주석을 짧게 줄이는 대신 남기는 쪽을 택했다: 그 개명은 되돌리고 싶어지는
+        # 모양(라우트를 `{job_id}` 로 바꾸면 더 작은 diff 다)이고, 왜 그 방향이
+        # **구조적으로 불가능**한지(`HEADLESS_API_PATH_PARAMS` 가 이름으로 키를 잡는데
+        # 두 축의 타입이 integer/string 으로 어긋난다)는 코드에서 읽히지 않는다.
+        # 분할이 아니라 한 표면 안의 같은 operation 들이므로 이 모듈이 커지는 것이 옳다.
+        #
         # 2026-09-02 상향 1837 → 1889 (plan-delivery). 이 테스트가 "누군가 근거를
         # 대게 하려고" 존재하므로 근거를 여기 남긴다: 챔버가 자기가 잴 계획을 읽는
         # operation 하나(route/permission/operation)와, 그 왕복이 조용히 잃던 필드
         # 둘(`packet` — Test Plan Modulation 셀의 출처 — 과 `generated_from_capability`)을 더했다. 분할이 아니라
         # **한 표면 안의 한 operation** 이므로 이 모듈이 커지는 것이 옳다 —
         # 게시 계획 계약은 이미 여기 전부 있고, 소비자가 하나 늘었을 뿐이다.
-        'surface_test_plan.py': 1889,
-        'surface_reports.py': 426,
+        'surface_test_plan.py': 1926,
+        # 2026-09-05 상향 426 → 433 (feature 축). operation 7 개, 선언 외 증가 0.
+        'surface_reports.py': 433,
         # ⚠️ 2026-08-31 **재정정** — 338 → 351 은 오기 수정이 아니라 **정당한 상향**이고,
         #    그 사실이 한 번 잘못 적혔다. 지우지 않고 왜 틀렸는지를 남긴다.
         #
@@ -384,10 +395,29 @@ class TestTheContractPackageDoesNotGrow(unittest.TestCase):
         #    경고 주석이고(같은 커밋이 담고 있다), 이 ratchet 이 지키는 것은 **surface
         #    성장**(DTO·operation 증가)이지 조용한 교차-provider 결함의 재발을 막는
         #    주석이 아니다. 모듈이 줄면 이 값을 다시 내릴 것.
-        'surface_sessions.py': 351,
-        'surface_jobs.py': 200,
-        'surface_meta.py': 158,
-        'surface_provider.py': 121,
+        # 2026-09-05 상향 351 → 356 (feature 축). operation 5 개, 선언 외 증가 0.
+        'surface_sessions.py': 356,
+        # 2026-09-05 상향 200 → 218. operation 4 개의 `feature=` 4 줄 +
+        # 나머지는 측정 job 식별자 수리의 사유다 — route 가 `{job_id}` 를 받는데
+        # 그 이름의 필드를 아무 응답도 내지 않았고, 대신 순차 PK(`id`)와
+        # `job_uuid` 둘을 내서 소비자가 골라야 했다(틀리면 404). PK 를 wire 에서
+        # 걷어내고 route 를 `{job_uuid}` 로 옮겼다.
+        #
+        # 사유를 코드 옆에 남기는 이유: 이 변경은 **되돌리고 싶어지는 모양**이다
+        # (`id` 를 다시 넣으면 프런트 3줄이 편해진다). 왜 안 되는지 — 열거 가능성
+        # (OWASP API1:2023) · AUTOINCREMENT 가 랩의 측정 건수를 흘리는 것
+        # (Zalando 144) · provider 간 정수 충돌 — 는 코드에서 읽히지 않는다.
+        'surface_jobs.py': 218,
+        # 2026-09-05 상향 158 → 177 (feature 축). operation 3 줄 + 16 줄은
+        # `HeadlessBackendStatusSnapshot.required` 에서 `report_automation` 을
+        # 뺀 사유다(§6.7.1 ①). 그 필드가 required 인 동안 큐가 없는 provider 도
+        # 0 을 보내야 했고, 그 0 이 「큐가 비었다」와 「그런 큐가 없다」를 겸했다 —
+        # 부재와 정상값이 한 표현을 나눠 쓰는, 이 레인이 반복해 이름 붙인 형태다.
+        # 되돌리기 쉬운 변경이므로(required 로 되돌리면 diff 가 한 줄이다) 사유를
+        # 코드 옆에 둔다.
+        'surface_meta.py': 177,
+        # 2026-09-05 상향 121 → 123 (feature 축). operation 2 개, 선언 외 증가 0.
+        'surface_provider.py': 123,
     }
 
     def test_no_surface_module_exceeds_its_recorded_size(self):

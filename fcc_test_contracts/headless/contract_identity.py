@@ -26,10 +26,17 @@ import json
 
 __all__ = [
     'CONTRACT_IDENTITY_ALGORITHM',
+    'FeatureScopeError',
     'contract_comparison_document',
     'contract_identity',
     'contract_identity_digest',
+    'feature_scoped_document',
+    'feature_scoped_identity',
 ]
+
+
+class FeatureScopeError(ValueError):
+    """A declared feature is not one this contract document declares."""
 
 #: Named in the evidence document rather than assumed, so a future change of
 #: algorithm is a value a reader can see rather than a silent reinterpretation
@@ -78,4 +85,115 @@ def contract_identity(document: dict) -> dict:
         'algorithm': CONTRACT_IDENTITY_ALGORITHM,
         'digest': contract_identity_digest(document),
         'operations': len(document.get('operations') or {}),
+    }
+
+
+def _schema_closure(names: set[str], schemas: dict) -> set[str]:
+    """Every schema reachable from ``names`` through ``$ref``."""
+    reached: set[str] = set()
+    pending = [name for name in names if name]
+    while pending:
+        name = pending.pop()
+        if name in reached or name not in schemas:
+            continue
+        reached.add(name)
+        stack = [schemas[name]]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                ref = node.get('$ref')
+                if isinstance(ref, str):
+                    pending.append(ref.rsplit('/', 1)[-1])
+                stack.extend(node.values())
+            elif isinstance(node, list):
+                stack.extend(node)
+    return reached
+
+
+def feature_scoped_document(document: dict, declared_features) -> dict:
+    """``document`` reduced to the features a provider says it serves.
+
+    The judgement §6.6 designed compares one digest against another. That works
+    only while both sides describe the same surface — and after §6.7 they do
+    not: a provider that legitimately serves a subset would have to reproduce
+    operations it never implemented in order to match a whole-contract digest.
+    Scoping the document to the declared features restores the comparison
+    without weakening it, because BOTH sides are reduced by this same function
+    (the caller passes the provider's declaration; the centre recomputes from
+    its own SSOT).
+
+    In scope: every ``required`` feature — always, whatever was declared — plus
+    the declared ones. Routes and operations are filtered to that set; schemas
+    are filtered to the ``$ref`` closure reachable from those operations, so a
+    provider is not digesting shapes it never serves; the ``features`` block is
+    filtered likewise.
+
+    ⚠️ ``provider`` is dropped here too, by :func:`contract_comparison_document`.
+    Scoping is a second reduction, not a replacement for the first.
+    """
+    features = document.get('features') or {}
+    declared = set(declared_features or ())
+    unknown = sorted(declared - set(features))
+    if unknown:
+        raise FeatureScopeError(
+            f'declared features this contract does not declare: {unknown}'
+        )
+    in_scope = declared | {
+        feature_id
+        for feature_id, properties in features.items()
+        if (properties or {}).get('required')
+    }
+
+    operations = document.get('operations') or {}
+    scoped_operations = {
+        name: operation
+        for name, operation in operations.items()
+        if operation.get('feature') in in_scope
+    }
+    schemas = document.get('schemas') or {}
+    reachable = _schema_closure(
+        {
+            name
+            for operation in scoped_operations.values()
+            for name in (operation.get('request'), operation.get('response'))
+            if name
+        },
+        schemas,
+    )
+
+    scoped = dict(contract_comparison_document(document))
+    scoped['operations'] = scoped_operations
+    scoped['routes'] = {
+        name: route
+        for name, route in (document.get('routes') or {}).items()
+        if name in scoped_operations
+    }
+    scoped['schemas'] = {
+        name: schema for name, schema in schemas.items() if name in reachable
+    }
+    scoped['features'] = {
+        feature_id: properties
+        for feature_id, properties in features.items()
+        if feature_id in in_scope
+    }
+    return scoped
+
+
+def feature_scoped_identity(document: dict, declared_features) -> dict:
+    """The identity block for a provider that serves ``declared_features``.
+
+    ``features`` is carried alongside the digest for the same reason
+    ``operations`` is: so a human reading a mismatch can see WHICH surface the
+    two sides thought they were comparing. The digest remains the only
+    judgement axis.
+    """
+    scoped = feature_scoped_document(document, declared_features)
+    canonical = json.dumps(
+        scoped, sort_keys=True, ensure_ascii=True, separators=(',', ':')
+    )
+    return {
+        'algorithm': CONTRACT_IDENTITY_ALGORITHM,
+        'digest': hashlib.sha256(canonical.encode('utf-8')).hexdigest(),
+        'operations': len(scoped.get('operations') or {}),
+        'features': sorted(scoped.get('features') or {}),
     }

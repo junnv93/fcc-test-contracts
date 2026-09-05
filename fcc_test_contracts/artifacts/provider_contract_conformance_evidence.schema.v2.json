@@ -1,0 +1,56 @@
+{
+  "$id": "provider_contract_conformance_evidence.schema.v2.json",
+  "schema_version": 2,
+  "status": "active_contract",
+  "supersedes": "provider_contract_conformance_evidence.schema.v1.json",
+  "owner_repository": "fcc-test-contracts",
+  "description": "Evidence manifest by which a provider reports that it checked its own contract against the SSOT, so the central lane can admit it WITHOUT receiving the provider's contract artifact. Version 2 adds the declared feature scope, so a provider that serves part of the contract can be judged against what it says it serves instead of being permanently non-conformant.",
+  "decision": "Operator ruling 2026-08-31 option 'na' (the provider checks itself; the centre receives only the result), the result design ruled 2026-09-04 (§6.6), and the feature scope ruled 2026-09-04 (§6.7) with its rule corrected in §6.7.1 and its closure derived in §6.7.2. FCC monorepo .claude/exec-plans/active/2026-08-31-kc-provider-identity-결정문.md.",
+  "required_top_level": [
+    "schema_version",
+    "provider_id",
+    "declared_features",
+    "contract_identity",
+    "subject",
+    "checker",
+    "result",
+    "produced_at",
+    "produced_by"
+  ],
+  "declared_features_rules": [
+    "declared_features is the list of feature ids the provider serves in full. Legal values are the keys of the contract document's 'features' block; an unlisted id is a hard failure, not a warning, because central has no operations to judge it against.",
+    "Features marked required in the contract are IN SCOPE whether declared or not. That is the non-emptiness arm: a provider that declares nothing is still judged against core, so 'declare nothing and pass' is not reachable.",
+    "⚠️ declared_features is NOT ProviderUiDescriptor.features and MUST NOT be copied from it. Measured 2026-09-05: the reference provider declares test_plan_edit / equipment_config / reference_tables / correction_tables / job_submission there — three of which correspond to descriptor sub-tables and to no headless operation at all. That field is the display-readiness channel and ADR-0010 D-7 forbids it from reaching into the typed contract. Two axes under one name is the defect class this contract removed from 'job_id' on 2026-09-05.",
+    "The declaration travels IN this document. Central must not call provider_capabilities or provider_ui_descriptor to learn it — that would make conformance depend on the network, which is the reason option 'ga' was rejected."
+  ],
+  "contract_identity_required_fields": ["algorithm", "digest", "operations", "features"],
+  "subject_required_fields": ["algorithm", "digest"],
+  "checker_required_fields": ["package", "version", "mode"],
+  "result_required_fields": ["compatible", "issues"],
+  "produced_by_required_fields": ["repository", "commit"],
+  "identity_rules": [
+    "contract_identity.digest MUST be produced by fcc_test_contracts.headless.contract_identity.feature_scoped_identity over declared_features — the centre recomputes it from its own SSOT with the same function and the same declaration, so a second implementation of the canonical form is a second definition of 'the same contract'. Read it with scripts/print_contract_identity.py --features; do not retype it (a digest hand-carried between lanes on 2026-09-05 arrived two characters short).",
+    "A provider that declares every non-required feature produces exactly the whole-contract digest. The feature scope is a conservative extension: it changes nothing for a provider that serves everything.",
+    "contract_identity.digest is the ONLY staleness axis. The contract document's 'version' string MUST NOT be used for that purpose: measured 2026-09-04, version stayed '1.0.0' across a real change from 39 to 40 operations, so two different contracts share one value on that axis.",
+    "contract_identity.operations and contract_identity.features are recorded so a human reading a mismatch can see WHICH surface each side thought it was comparing. They are NOT judgement axes; the digest is.",
+    "subject.digest is the identity of the artifact the provider derived FROM ITS OWN IMPLEMENTATION, reduced to the same feature scope. It MUST equal contract_identity.digest when result.compatible is true, because the compatibility check strips the 'provider' block from both sides — that equality is what lets the centre verify conformance arithmetically without ever receiving the provider's artifact.",
+    "checker.mode MUST be 'declared-features'. ⚠️ 'live-subset' is not an acceptable substitute: that mode was rejected as a conformance basis because nobody had defined which subset is legal, and accepting it here would re-admit the rejection."
+  ],
+  "conformance_rule": "Three arms, and only the third has teeth on its own. ① every operation of every in-scope feature is served; ② the provider's declaration and its served surface agree (declare it and you must serve it, serve it and you must declare it); ③ the dependency closure holds — for every served operation, every path identifier it consumes that is classed provider_produced must have at least one of its producers served. ①② compare the provider with itself, so a provider that declares nothing and serves nothing satisfies both; ③ is what closes that.",
+  "closure_rule": "Dependencies are DERIVED from the contract, never listed by hand: a route path containing {x} consumes x, and an operation is a minimal producer of x when its response declares x at top level, under a write method, and it does not itself take x from the path. All three narrowings are load-bearing — without them get_test_plan_draft 'produces' draft_id by handing back what it was given, get_published_test_plan 'produces' project_id by mentioning it, and list_test_plan_drafts 'produces' draft_id by discovery rather than creation. Identifiers are classed provider_produced / external / side_effect / defect; only provider_produced is required, and 'defect' is a ratchet that may not grow.",
+  "freshness_rule": "Verification is DERIVED, not scheduled. The central gate recomputes the scoped SSOT digest on every run and compares it to contract_identity.digest, so a change to the SSOT — or a change to the provider's own declaration — invalidates every outstanding evidence document on the next run. There is no expiry timestamp and no cron: an expiry date would be a second opinion next to the digest, and the two would disagree the day the contract changed off-schedule.",
+  "absence_rule": "Fail closed. A registered provider with no evidence document is NOT 'unknown' — it is non-conformant, and the gate is red. Absence and pass must never share a value, which is the defect this whole axis exists to end.",
+  "failure_names": [
+    "evidence missing — no document for a registered provider",
+    "evidence stale — contract_identity.digest does not match the current SSOT digest recomputed over declared_features",
+    "evidence non-conformant — subject.digest disagrees with contract_identity.digest, or result.compatible is not true",
+    "evidence unscoped — declared_features is absent, empty of legal values, or names a feature the contract does not declare",
+    "evidence wrong-mode — checker.mode is not 'declared-features'"
+  ],
+  "notes": "⚠️ What this does NOT cover: FORGERY. An unsigned evidence document can be hand-written with the correct digest and a flattering declaration, and nothing here detects that. This schema closes ABSENCE, STALENESS and UNDECLARED SCOPE only. Signing needs an answer about key custody that does not exist yet; when it does, a signature block joins required_top_level and this note shrinks. Claiming more than that today would itself be the failure class this lane keeps naming — a check that looks stronger than it is. ⚠️ Note also what the feature scope does NOT claim: that a declared feature WORKS. §6.7.1 measured a provider serving all four measurement-job operations with no worker consuming the queue, so every job stays queued. Conformance judges the surface; runtime capability is what headless_status answers, and an offline artifact cannot carry it.",
+  "unenforced_axes": [
+    "authenticity of the producer",
+    "that the subject was in fact derived from a running provider implementation",
+    "that a declared feature is operational rather than merely served"
+  ]
+}

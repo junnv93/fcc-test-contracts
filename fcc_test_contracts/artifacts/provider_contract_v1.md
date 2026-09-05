@@ -319,7 +319,20 @@ descriptor and the shared platform renders it generically. Rules:
 4. **Custom provider UI = extension slot only.** When a provider genuinely needs
    non-generic UI (e.g. an mmWave beam-sweep visualizer), it is mounted as a
    sandboxed platform extension; the central DB contract is never broken.
-5. **Blueprint is a non-SSOT mockup.** `web_excel_replacement_ui_blueprint_2026-05-29.html`
+5. 🔴 **`features` here is the DISPLAY axis, not the conformance axis.** The
+   `ProviderFeature[]` array answers *"what should the screen show as ready?"*
+   and its `feature_id` values are the provider's own — measured 2026-09-05, the
+   Unlicensed descriptor declares `test_plan_edit` / `equipment_config` /
+   `reference_tables` / `correction_tables` / `job_submission`, three of which
+   name descriptor sub-tables and no headless operation at all. Conformance is
+   judged on a **different** vocabulary that lives in the contract document
+   (`features`, with each operation naming its own) and travels in the
+   conformance evidence — see «Conformance features» below. ⚠️ Do not enum-lock
+   one to the other and do not copy one into the other: rule D-7 of ADR-0010
+   already forbids the descriptor from reaching into the typed contract, and one
+   name over two axes is the defect this contract removed from `job_id` on the
+   same day.
+6. **Blueprint is a non-SSOT mockup.** `web_excel_replacement_ui_blueprint_2026-05-29.html`
    (and its BT/BLE/DTS/UNII tokens, column headers, row counts / metrics) is a
    design reference only — the runtime SSOT is the descriptor + `Col.*`.
 
@@ -327,3 +340,61 @@ Row edit / save / publish are **deferred** to `WEB-PROVIDER-UI-0.5` (stable
 row-identity + authoritative store ADR): `condition_hash` currently includes
 `row_order`, so row insert/delete/reorder would orphan existing
 attempt/coverage/claim identity. No row CRUD/publish until that ADR lands.
+
+
+## Conformance features (2026-09-05)
+
+The contract document carries a top-level `features` block, and every entry in
+`operations` names the feature it belongs to. Together they partition all 40
+operations, disjointly and totally — checked at import, not by convention.
+
+```
+features.<id>.required   true ⇒ core: in scope whether a provider declares it or not
+operations.<id>.feature  the single feature that operation is part of
+```
+
+A provider declares the features it serves in its **conformance evidence**
+(`provider_contract_conformance_evidence.schema.v2.json`), and is judged against
+that scope in full: every operation of every in-scope feature, plus the
+dependency closure derived from the route path parameters. Both sides reduce the
+document with `contract_identity.feature_scoped_document`, so the comparison
+stays a digest equality and the centre never receives a provider artifact.
+
+⚠️ **Core is deliberately small — five operations.** The test for widening it is
+*"without this, what can the centre not ask?"*, never *"this is important."*
+
+```
+health_check · headless_api_contract · headless_status
+             · provider_capabilities · provider_ui_descriptor
+```
+
+⚠️ **A feature is a grouping, not a promise that it works.** `headless_status`
+answers the runtime question; conformance answers the surface question. A
+provider can serve every measurement-job operation with no worker consuming the
+queue (measured 2026-09-04), and the evidence is green because the evidence is
+about the surface.
+
+
+## Path identifiers must be opaque (2026-09-05)
+
+Every `{name}` a route takes is declared in `HEADLESS_API_PATH_PARAMS`, and
+`path_identifier_policy` refuses a **new** numeric one at import time. The rule
+is not this project's invention:
+
+* [OWASP API Security Top 10 2023 — API1:2023 BOLA][owasp]: *"Prefer the use of
+  random and unpredictable values as GUIDs for records' IDs."*
+* [Zalando RESTful API Guidelines][zalando] rule 174: *"IDs must be opaque
+  strings and not numbers. IDs are unique within some documented context, are
+  stable and don't change for a given object once assigned."* Rule 144 adds the
+  second reason — sequential ids *"may reveal critical, confidential business
+  information, like order volume, to non-privileged clients."*
+
+⚠️ **Three identifiers are still integers and are named rather than excused** —
+`session_id`, `request_id`, `draft_row_id`. They live in
+`INTEGER_IDENTIFIER_GRANDFATHER`, each with the reason it has not moved, and the
+list is a **ratchet**: it may shrink and never grow. Migrating three live
+surfaces inside the commit that repaired a fourth would have been three
+unannounced wire breaks riding along with one decided change.
+
+[owasp]: https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/
+[zalando]: https://opensource.zalando.com/restful-api-guidelines/

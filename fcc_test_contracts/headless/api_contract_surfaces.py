@@ -28,7 +28,17 @@ import fcc_test_contracts.headless.surface_provider as surface_provider
 import fcc_test_contracts.headless.surface_reports as surface_reports
 import fcc_test_contracts.headless.surface_sessions as surface_sessions
 import fcc_test_contracts.headless.surface_test_plan as surface_test_plan
+from fcc_test_contracts.headless.api_contract_features import (
+    HEADLESS_FEATURES,
+    validate_feature_membership,
+)
+from fcc_test_contracts.headless.api_contract_constants import (
+    HEADLESS_API_PATH_PARAMS,
+)
 from fcc_test_contracts.headless.api_contract_shared_schemas import SHARED_SCHEMAS
+from fcc_test_contracts.headless.path_identifier_policy import (
+    validate_path_identifier_policy,
+)
 
 
 class DuplicateContractKeyError(KeyError):
@@ -89,3 +99,18 @@ HEADLESS_API_ROUTES = merge_surface_table('ROUTES')
 HEADLESS_API_PERMISSIONS = merge_surface_table('PERMISSIONS')
 HEADLESS_API_OPERATIONS = merge_surface_table('OPERATIONS')
 HEADLESS_API_SCHEMAS = merge_surface_table('SCHEMAS', extra=SHARED_SCHEMAS)
+
+#: Feature properties, keyed by the ids the operations above claim. Exposed from
+#: here (rather than only from ``api_contract_features``) so that a caller
+#: holding the merged operation table holds the vocabulary that explains it.
+HEADLESS_API_FEATURES = dict(HEADLESS_FEATURES)
+
+# ⚠️ Import time, not test time — same reason ``DuplicateContractKeyError`` is
+# raised at import. An operation whose feature is missing or misspelled still
+# builds an artifact and still resolves a route; the only witness would be a
+# provider judged against a feature nobody declared.
+validate_feature_membership(HEADLESS_API_OPERATIONS)
+
+# A new integer path identifier builds a valid artifact and resolves a valid
+# route; the only witness would be the enumeration it enables.
+validate_path_identifier_policy(HEADLESS_API_PATH_PARAMS)

@@ -37,7 +37,13 @@ from fcc_test_contracts.headless.api_contract_primitives import (
 from fcc_test_contracts.headless.api_contract_snapshot import (
     ApiContractSnapshot,
 )
+from fcc_test_contracts.headless.api_contract_features import (
+    CORE_FEATURE_IDS,
+    FEATURE_IDS,
+    feature_operations,
+)
 from fcc_test_contracts.headless.api_contract_surfaces import (
+    HEADLESS_API_FEATURES,
     HEADLESS_API_OPERATIONS,
     HEADLESS_API_PERMISSIONS,
     HEADLESS_API_ROUTES,
@@ -93,6 +99,9 @@ __all__ = [
     'MAX_ATTEMPTS_PAGE_LIMIT',
     'MAX_PUBLISHED_PLANS_PAGE_LIMIT',
     'DEFAULT_PROVIDER_METADATA',
+    'CORE_FEATURE_IDS',
+    'FEATURE_IDS',
+    'HEADLESS_API_FEATURES',
     'HEADLESS_API_OPERATIONS',
     'HEADLESS_API_PATH_PARAMS',
     'HEADLESS_API_PERMISSIONS',
@@ -130,6 +139,7 @@ __all__ = [
     'TestPlanImportResponse',
     'ValidateTestPlanDraftResponse',
     'ValidationIssueView',
+    'feature_operations',
     # Wire guard, public so dependent lanes decode payloads without copying it.
     'require_object',
 ]

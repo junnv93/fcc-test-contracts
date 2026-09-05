@@ -10,6 +10,7 @@ def _operation(
     request: Optional[str],
     response: str,
     permission: str,
+    feature: str,
     query_params: Optional[list] = None,
     binary_response: bool = False,
     binary_media_type: Optional[str] = None,
@@ -23,6 +24,19 @@ def _operation(
         'request': request,
         'response': response,
         'permission': permission,
+        # Which capability this operation is part of (2026-09-05). Declared
+        # here — on the operation, at the keystroke that creates it — rather
+        # than in a feature -> operations table elsewhere, so that adding an
+        # operation cannot leave it ungrouped. ``api_contract_features``
+        # validates the value at import; ``feature_operations()`` derives the
+        # table for callers that want it the other way round.
+        #
+        # ⚠️ Unlike every other optional key below, this one is REQUIRED and
+        # present on all 40 operations. It therefore moves the contract digest
+        # for every operation at once — deliberately, and at the cheapest
+        # moment available: no provider had yet published conformance evidence
+        # against the old digest (confirmed with the KC lane, 2026-09-05).
+        'feature': feature,
     }
     # Only operations that actually take query parameters / return a binary
     # stream / declare extra error responses carry the extra key, so the other

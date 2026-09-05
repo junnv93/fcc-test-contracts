@@ -22,9 +22,13 @@ SHARED_SCHEMAS = {
     # the worse failure of the two — nobody files a bug about whitespace.)
     'MeasurementJobSnapshot': {
         'type': 'object',
-        'required': ['id', 'status', 'excel_path'],
+        # ⚠️ ``id`` (the storage PK) left the wire on 2026-09-05 — see
+        # ``surface_jobs.MeasurementJobSubmitted`` and
+        # ``path_identifier_policy``. ``job_uuid`` is now required rather than
+        # optional: it is what addresses the job, so a snapshot without it
+        # names something the caller cannot fetch.
+        'required': ['job_uuid', 'status', 'excel_path'],
         'properties': {
-            'id': {'type': 'integer'},
             'job_uuid': {'type': 'string'},
             'excel_path': {'type': 'string'},
             'session_id': {'type': 'integer', 'nullable': True},

@@ -146,7 +146,86 @@ section says what happens to that verification once it passes.
 **You never send your contract artifact.** Operator ruling 2026-08-31 (option
 「나」): the artifact stays with its publisher and the centre receives only the
 result. You send a **conformance evidence document**, shaped by
-`artifacts/provider_contract_conformance_evidence.schema.v1.json`.
+`artifacts/provider_contract_conformance_evidence.schema.v2.json`.
+
+⚠️ **You are not required to serve the whole contract.** Until 2026-09-05 you
+were: the only judgement available was *"serves all 40 operations"*, so a
+provider building the surface in stages was `compatible=false` for reasons that
+had nothing to do with conformance. You now declare **which features you
+serve**, and you are judged against that — in full. §7.0 says how to choose the
+declaration; the rest of §7 assumes you have.
+
+### 7.0 Declare what you serve
+
+The contract groups its operations into **features**, and the group is in the
+contract document itself — read it, do not invent ids:
+
+<!-- onboarding-commands: features -->
+```console
+$ python3 -c "import json,sys; d=json.load(open('fcc_test_contracts/artifacts/headless_api_contract.v1.json')); print('\n'.join(sorted(d['features'])))"
+# exit: 0
+```
+
+Each operation names its feature (`operations.<name>.feature`), so the grouping
+and the surface cannot disagree. Features marked `"required": true` are **core**:
+they are in scope whether you declare them or not, because without them the
+centre cannot even ask what you support.
+
+Three rules decide whether your declaration is legal, and only the third has
+teeth on its own:
+
+| | |
+|---|---|
+| ① core is served | required features are in scope, always |
+| ② declaration and surface agree | declare a feature and you serve every one of its operations; serve one and you declare it |
+| ③ the **dependency closure** holds | for every operation you serve, every id its path needs must be mintable by something you also serve |
+
+⚠️ **①② compare you with yourself.** A provider that declares nothing and serves
+nothing satisfies both. ③ is what closes that, and it is derived from the
+contract rather than listed: a route with `{x}` consumes `x`, and an operation
+produces `x` when its response declares `x` at top level under a write method
+without taking `x` from its own path. So serving `publish_test_plan_draft`
+obliges you to serve `create_test_plan_draft` **or** `import_test_plan` — either
+one; the closure asks whether a draft can exist, not which door made it.
+
+⚠️ Two identifiers are exempt: `project_id` comes from the centre (no provider
+mints projects) and `session_id` appears when a measurement runs (no operation
+creates one). Every other path identifier must be mintable by something you
+serve.
+
+🔴 **Breaking change 2026-09-05 — the measurement job is addressed by
+`{job_uuid}`, not `{job_id}`.** The routes are now
+`GET /headless/jobs/{job_uuid}` and `POST /headless/jobs/{job_uuid}/stop`, and
+`MeasurementJobSubmitted` / `MeasurementJobSnapshot` no longer carry `id`.
+If you serve `measurement-jobs`, this is a wire change you must follow.
+
+Why, so you can weigh it rather than just absorb it:
+
+* the route took `{job_id}` and **no response declared a field of that name** —
+  submit returned the storage key as `id` and stop echoed `job_id`, so a client
+  had to guess which addressed the resource, and a wrong guess is a 404;
+* `measurement_jobs.id` is `INTEGER PRIMARY KEY AUTOINCREMENT`, so its value is
+  **the number of jobs your laboratory has ever run** — commercial information
+  handed to every caller ([Zalando RESTful API Guidelines][zalando] rule 144);
+* a per-provider integer is not unique across providers, so your job 1 and the
+  reference provider's job 1 collide the day the centre aggregates a queue;
+* path identifiers should be opaque and unpredictable in the first place
+  ([OWASP API1:2023 BOLA][owasp]: *"Prefer the use of random and unpredictable
+  values as GUIDs for records' IDs"*; [Zalando][zalando] rule 174: *"IDs must be
+  opaque strings and not numbers"*).
+
+`job_uuid` was already in the schema and already unique-indexed. Nothing new was
+invented — the route simply stopped taking the wrong one of the two.
+
+[owasp]: https://owasp.org/API-Security/editions/2023/en/0xa1-broken-object-level-authorization/
+[zalando]: https://opensource.zalando.com/restful-api-guidelines/
+
+⚠️ **This declaration is NOT `ProviderUiDescriptor.features`, and you must not
+copy one into the other.** That field is the display-readiness channel and its
+ids are yours to choose; ADR-0010 D-7 keeps the two apart on purpose. Measured
+2026-09-05: the reference provider declares `equipment_config` /
+`reference_tables` / `correction_tables` there, none of which is a headless
+operation at all.
 
 ### 7.1 Read the identity of the contract you checked against
 
@@ -154,7 +233,19 @@ result. You send a **conformance evidence document**, shaped by
 ```console
 $ python3 scripts/print_contract_identity.py
 # exit: 0
+$ python3 scripts/print_contract_identity.py --features measurement-jobs
+# exit: 0
 ```
+
+⚠️ **Pass `--features` with your declaration from §7.0.** Without it you get the
+whole-contract digest, which you can only match by serving all 40. With it, both
+sides reduce the document to the same scope before hashing, so the comparison
+stays arithmetic. Declaring every non-required feature reproduces the
+whole-contract digest exactly — the scope is a conservative extension, not a
+second regime.
+
+⚠️ **Paste the output; do not retype it.** A digest hand-carried between two
+lanes on 2026-09-05 arrived two characters short.
 
 ⚠️ **`scripts/` travels with the box, not inside the wheel.** If you pinned this
 lane with `pip install git+…` you did not receive that file (measured
@@ -167,8 +258,13 @@ from fcc_test_contracts.headless.contract_identity import contract_identity
 import json
 
 ssot = resolve_dependency_artifact('fcc_test_contracts/artifacts/headless_api_contract.v1.json')
-identity = contract_identity(json.loads(ssot.read_text(encoding='utf-8')))
+document = json.loads(ssot.read_text(encoding='utf-8'))
+identity = feature_scoped_identity(document, ['measurement-jobs'])   # your §7.0 list
 ```
+
+(import it as `from fcc_test_contracts.headless.contract_identity import
+feature_scoped_identity`; `contract_identity` remains for the whole-contract
+value.)
 
 ⚠️ Reach the artifact through `resolve_dependency_artifact`, not through
 `importlib.resources.files(...)`: this lane's packages are PEP 420 namespace
@@ -176,7 +272,7 @@ packages, and `files()` on one returns a `MultiplexedPath` that raises
 `NotADirectoryError` when you join a directory onto it. (Measured 2026-09-04 —
 by the author of this section, one command after writing it.)
 
-Both paths print `{algorithm, digest, operations}`. ⚠️ **The `digest` is what
+Both paths print `{algorithm, digest, operations, features}`. ⚠️ **The `digest` is what
 your evidence must name — not the `version` string.** Measured 2026-09-04: `version`
 was `1.0.0` for both the 39-operation contract and the 40-operation contract
 that replaced it, so a result keyed to the version cannot say which one it
@@ -186,16 +282,22 @@ checked. The digest moves when the contract moves; the version did not.
 
 ```json
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "provider_id": "<your registry provider_id>",
-  "contract_identity": { "algorithm": "sha256", "digest": "<from 7.1>", "operations": 40 },
-  "subject":           { "algorithm": "sha256", "digest": "<identity of YOUR derived artifact>" },
-  "checker":           { "package": "fcc-test-contracts", "version": "<the version you ran>", "mode": "full" },
+  "declared_features": ["<from 7.0>", "..."],
+  "contract_identity": { "algorithm": "sha256", "digest": "<from 7.1>", "operations": 21, "features": ["core", "..."] },
+  "subject":           { "algorithm": "sha256", "digest": "<same scope, YOUR derived artifact>" },
+  "checker":           { "package": "fcc-test-contracts", "version": "<the version you ran>", "mode": "declared-features" },
   "result":            { "compatible": true, "issues": [] },
   "produced_at": "<ISO-8601>",
   "produced_by": { "repository": "<your repo>", "commit": "<sha>" }
 }
 ```
+
+⚠️ `checker.mode` must be `declared-features`. **Not `live-subset`** — that mode
+was rejected as a conformance basis precisely because nobody had defined which
+subset is legal, and sending it here re-admits the rejection. `full` is still
+correct if you declare every feature.
 
 `subject.digest` is the identity of the artifact **you derived from your own
 implementation** — the same command in §7.1 accepts a path, so run it on your
@@ -211,8 +313,9 @@ artifact** — which is the whole reason option 「나」 is implementable.
 ### 7.3 What the centre does with it — and what makes it red
 
 Verification is **derived, not scheduled**. The central gate recomputes the SSOT
-digest on every run and compares it to your `contract_identity.digest`. There is
-no expiry field and no cron: when the contract changes, every outstanding
+digest **over your declared features** on every run and compares it to your
+`contract_identity.digest`. There is no expiry field and no cron: when the
+contract changes — or when you change what you declare — every outstanding
 evidence document becomes stale on the next gate run, automatically.
 
 Three named failures, so the cause is legible from the failure alone:
@@ -222,6 +325,8 @@ Three named failures, so the cause is legible from the failure alone:
 | **evidence missing** | you are registered and no document arrived |
 | **evidence stale** | your `contract_identity.digest` is not the current SSOT digest |
 | **evidence non-conformant** | `subject.digest` disagrees with `contract_identity.digest`, or `result.compatible` is not `true` |
+| **evidence unscoped** | `declared_features` is absent, or names a feature the contract does not declare |
+| **evidence wrong-mode** | `checker.mode` is not `declared-features` |
 
 ⚠️ **Fail closed.** A registered provider with no evidence is not *unknown*, it
 is *non-conformant*. Absence and pass must never share a value.
@@ -229,8 +334,14 @@ is *non-conformant*. Absence and pass must never share a value.
 ### 7.4 What this does not cover — read this before you rely on it
 
 **Forgery.** An unsigned evidence document can be hand-written with the correct
-digest and nothing here detects it. This channel closes **absence** and
-**staleness** only. Signing waits on an answer about key custody that does not
+digest and a flattering declaration, and nothing here detects it. This channel
+closes **absence**, **staleness** and **undeclared scope** only.
+
+**That a declared feature works.** Conformance judges the *surface*. Measured
+2026-09-04: a provider served all four measurement-job operations with no worker
+consuming the queue, so every submitted job stayed `queued` forever. That is a
+runtime fact `headless_status` answers, and an offline artifact cannot carry
+it — do not read a green evidence document as *"this feature functions."* Signing waits on an answer about key custody that does not
 exist yet; when it does, a signature block joins the schema's
 `required_top_level` and this subsection shrinks.
 

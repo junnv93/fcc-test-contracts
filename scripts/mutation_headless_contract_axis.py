@@ -36,6 +36,14 @@ import pathlib
 import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
+# ⚠️ REPO_ROOT itself, first. It came from the monorepo where the contract lived
+# under ``src/``; here it lives in the package at the tree root, so the two
+# lines below reached the sibling entry points and the (absent) src tree but
+# NOT the package this battery is supposed to mutate — the process fell back to
+# the installed ``fcc_test_contracts``. A mutation battery that mutates an
+# installed copy reports on a build nobody is editing.
+# Measured 2026-09-05 by ``tests/test_scripts_resolve_this_tree.py``.
+sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / 'scripts'))
 sys.path.insert(0, str(REPO_ROOT / 'src'))
 

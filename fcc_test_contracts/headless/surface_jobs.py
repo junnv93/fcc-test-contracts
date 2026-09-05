@@ -26,9 +26,9 @@ SURFACE_PREFIXES = (
 
 ROUTES = {
     'list_measurement_jobs': ('GET', '/headless/jobs'),
-    'get_measurement_job': ('GET', '/headless/jobs/{job_id}'),
+    'get_measurement_job': ('GET', '/headless/jobs/{job_uuid}'),
     'submit_measurement_job': ('POST', '/headless/jobs'),
-    'stop_measurement_job': ('POST', '/headless/jobs/{job_id}/stop'),
+    'stop_measurement_job': ('POST', '/headless/jobs/{job_uuid}/stop'),
 }
 
 
@@ -74,36 +74,51 @@ class StopMeasurementJobRequest:
 
 @dataclass(frozen=True)
 class MeasurementJobSubmitted:
-    id: int
+    # ⚠️ ``id`` — the storage primary key — is deliberately NOT here (2026-09-05).
+    # It was, alongside ``job_uuid``, and that was three defects in one field:
+    #
+    #   · the route took ``{job_id}`` and this response declared neither name,
+    #     so a consumer had to GUESS which of the two addressed the resource
+    #     and a wrong guess is a 404 (measured against a running provider);
+    #   · ``measurement_jobs.id`` is INTEGER PRIMARY KEY AUTOINCREMENT, so its
+    #     value is the number of jobs the laboratory has ever run — commercial
+    #     information handed to every caller (Zalando rule 144);
+    #   · a per-provider integer is not unique across providers, so KC's job 1
+    #     and FCC's job 1 collide the day the centre aggregates a queue.
+    #
+    # ``job_uuid`` answers all three and was already unique-indexed in
+    # migration 006. See ``path_identifier_policy`` for the standards this
+    # follows and the ratchet that keeps new numeric identifiers out.
+    job_uuid: str
     status: str
     excel_path: str
-    job_uuid: str = ''
 
     @classmethod
     def from_row(cls, row: dict) -> 'MeasurementJobSubmitted':
         return cls(
-            id=int(row['id']),
+            job_uuid=str(row['job_uuid']),
             status=str(row.get('status') or ''),
             excel_path=str(row.get('excel_path') or ''),
-            job_uuid=str(row.get('job_uuid') or ''),
         )
 
     def to_dict(self) -> dict:
         return {
-            'id': self.id,
+            'job_uuid': self.job_uuid,
             'status': self.status,
             'excel_path': self.excel_path,
-            'job_uuid': self.job_uuid,
         }
 
 
 @dataclass(frozen=True)
 class StopMeasurementJobResponse:
-    job_id: int
+    # Echoes the identifier that ADDRESSED the resource. It used to echo the
+    # integer PK while the route already spoke of ``{job_id}`` — a third
+    # spelling of one thing across one axis.
+    job_uuid: str
     stop_requested: bool = True
 
     def to_dict(self) -> dict:
-        return {'job_id': self.job_id, 'stop_requested': self.stop_requested}
+        return {'job_uuid': self.job_uuid, 'stop_requested': self.stop_requested}
 
 
 def _required_text(data: dict, key: str) -> str:
@@ -151,9 +166,8 @@ SCHEMAS = {
     },
     'MeasurementJobSubmitted': {
         'type': 'object',
-        'required': ['id', 'status', 'excel_path', 'job_uuid'],
+        'required': ['job_uuid', 'status', 'excel_path'],
         'properties': {
-            'id': {'type': 'integer'},
             'status': {'type': 'string'},
             'excel_path': {'type': 'string'},
             'job_uuid': {'type': 'string'},
@@ -166,9 +180,9 @@ SCHEMAS = {
     },
     'StopMeasurementJobResponse': {
         'type': 'object',
-        'required': ['job_id', 'stop_requested'],
+        'required': ['job_uuid', 'stop_requested'],
         'properties': {
-            'job_id': {'type': 'integer'},
+            'job_uuid': {'type': 'string'},
             'stop_requested': {'type': 'boolean'},
         },
         'additionalProperties': False,
@@ -181,20 +195,24 @@ OPERATIONS = {
         request=None,
         response='MeasurementJobList',
         permission=PERMISSIONS['list_measurement_jobs'],
+        feature='measurement-jobs',
     ),
     'get_measurement_job': _operation(
         request=None,
         response='MeasurementJobSnapshot',
         permission=PERMISSIONS['get_measurement_job'],
+        feature='measurement-jobs',
     ),
     'submit_measurement_job': _operation(
         request='SubmitMeasurementJobRequest',
         response='MeasurementJobSubmitted',
         permission=PERMISSIONS['submit_measurement_job'],
+        feature='measurement-jobs',
     ),
     'stop_measurement_job': _operation(
         request='StopMeasurementJobRequest',
         response='StopMeasurementJobResponse',
         permission=PERMISSIONS['stop_measurement_job'],
+        feature='measurement-jobs',
     ),
 }
