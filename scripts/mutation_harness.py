@@ -22,6 +22,17 @@ paid for once already, in `mutation_credential_throttle.py`:
   down while being tallied ``KILLED``.)
 * **Restoration is from an in-memory backup, not ``git checkout``**, which would
   delete uncommitted work in the tree.
+* **Restoring the source is not restoring the module.** CPython validates a
+  ``.pyc`` against ``(source mtime truncated to whole seconds, source size)``,
+  so writing a file back does not invalidate bytecode compiled from the
+  mutation when both conditions still hold — and they hold for every battery
+  whose seal runs in under a second, which is most of them. The second
+  condition is met by *good practice*: a length-preserving mutation is the
+  recommended shape and it is exactly the one that keeps the size equal.
+  Measured 2026-09-06: a two-mutation battery reported both verdicts correctly,
+  ``git status`` was clean, the source was byte-identical to HEAD — and the
+  seal still failed in that tree, because the module answered with the mutated
+  constant. Every write of a Python target now drops its cached bytecode.
 * **``SIGTERM`` does not fire ``atexit``.** A long battery that is killed leaves
   mutations in the tree, so signals are handled explicitly.
 * **An unmutated tree must be green first.** In a red tree every mutation looks
@@ -37,6 +48,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import importlib.util
 import os
 import signal
 import subprocess
@@ -124,6 +136,38 @@ def _run(argv, cwd, timeout=SEAL_TIMEOUT_SECONDS):
         return None
 
 
+def _write(target: Path, text: str) -> None:
+    """Write ``text`` to ``target`` **and** drop any bytecode compiled from it.
+
+    Every write in a battery goes through here — the mutation and both restore
+    paths — because the hazard is symmetric and only one half of it is loud:
+
+    * a **restore** that leaves stale bytecode hands back a tree whose source is
+      byte-identical to HEAD and whose behaviour is the mutation's; the next
+      thing anyone runs there is red for a reason nothing in the tree explains;
+    * a **mutation** that leaves stale bytecode never applies, and an
+      unapplied mutation and a surviving mutation print the same thing — which
+      is the first rule this module's own header states, defeated one layer
+      below where that rule looks.
+
+    The check above (*"the write actually changed the file"*) reads the source,
+    so it is satisfied in both cases. Only removing the cache answers.
+    """
+    target.write_text(text, encoding='utf-8')
+    if target.suffix != '.py':
+        return
+    try:
+        cached = Path(importlib.util.cache_from_source(str(target)))
+    except (NotImplementedError, ValueError):
+        return
+    try:
+        cached.unlink()
+    except OSError:
+        # Absent, unwritable, or a directory in the way — all of which mean the
+        # next import reads the source, which is the outcome this wants.
+        pass
+
+
 def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
     """Run ``mutations`` against ``seal``. Returns a process exit code.
 
@@ -178,7 +222,7 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
 
     def _restore_all() -> None:
         for path, text in backups.items():
-            (repo_root / path).write_text(text, encoding='utf-8')
+            _write(repo_root / path, text)
         backups.clear()
 
     def _on_signal(signum, _frame):
@@ -212,7 +256,7 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
                 if mutated == original:
                     problem = f'{path}: 치환이 아무것도 바꾸지 않았다'
                     break
-                target.write_text(mutated, encoding='utf-8')
+                _write(target, mutated)
                 if target.read_text(encoding='utf-8') == original:
                     problem = f'{path}: 쓰기가 반영되지 않았다'
                     break
@@ -224,7 +268,7 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
 
             if problem is not None:
                 for path in touched:
-                    (repo_root / path).write_text(backups[path], encoding='utf-8')
+                    _write(repo_root / path, backups[path])
                 for path, _o, _n, _c in mutation.sites:
                     backups.pop(path, None)
                 not_applied.append((index, mutation, problem))
@@ -234,7 +278,7 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
 
             outcome = _seal_verdict()
             for path in touched:
-                (repo_root / path).write_text(backups[path], encoding='utf-8')
+                _write(repo_root / path, backups[path])
             for path, _o, _n, _c in mutation.sites:
                 backups.pop(path, None)
 
