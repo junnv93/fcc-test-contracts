@@ -24,6 +24,8 @@ route/permission/schema/operation 선언은 ``surface_*`` 모듈이 갖고, 표�
 """
 from __future__ import annotations
 
+from typing import Literal, NotRequired, Required, TypedDict
+
 from fcc_test_kernel.application.central_contract.api_parameters import (
     PLATFORM_API_PATH_PARAMS,
     PLATFORM_API_QUERY_PARAMS,
@@ -115,4 +117,57 @@ PLATFORM_API_RESPONSE_HEADERS: dict[str, dict] = merge_surface_table('RESPONSE_H
 PLATFORM_API_SCHEMAS: dict[str, dict] = merge_surface_table('SCHEMAS')
 
 
-PLATFORM_API_OPERATIONS: dict[str, dict] = merge_surface_table('OPERATIONS')
+class OperationSpec(TypedDict):
+    """한 operation 의 계약. **필수/선택은 실측이 정한다** (2026-09-06, 80 operation 전수).
+
+    ⚠️ 등장 수가 ``Required``/``NotRequired`` 를 정한다 — 셋만 80/80 이다::
+
+        request                          80/80   필수 (⚠️ 42개가 ``None``)
+        response                         80/80   필수
+        permission                       80/80   필수
+        error_responses                  64/80   선택 — 16개 operation 에 «없다»
+        allowed_during_password_change    3/80   선택 (값 집합 ``{True}``)
+        response_media_type               1/80   선택
+
+    ⚠️ **간결하게 ``total=True`` 로 줄이지 마라. 그것은 정리가 아니라 회귀다.**
+    선택 셋을 필수로 적으면 mypy 가 «없는 키가 있다고 보증»한다 — 아무것도 검사하지
+    않는 것보다 나쁘다. 첨자 전환을 켜는 순간 답하는 것은 mypy 가 아니라 런타임이다.
+
+    ■ ⚠️ 이 선언이 «보이려면» 배포판에 ``py.typed`` 가 있어야 한다
+
+    PEP 561: 마커가 없으면 mypy 는 설치된 이 패키지를 «미타입»으로 보고 import 전체를
+    ``Any`` 로 만든다. 실측 2026-09-06 — 소비 레인(platform)에서 같은 코드가::
+
+        py.typed 없음   revealed: Any        · 잘못된 대입 0건 · 없는 키 0건  ← 아무것도 안 잡힌다
+        py.typed 있음   revealed: OperationSpec · [assignment] · [typeddict-item]
+
+    ⚠️ 그리고 platform 의 ``mypy.ini`` 가 ``ignore_missing_imports = True`` 라
+    ``[import-untyped]`` 경고조차 안 뜬다 — **아무 신호 없이 0건 검사된다.**
+    그래서 이 파일과 ``py.typed`` 는 **같은 판에 나가야 한다.**
+
+    ■ ⚠️ 소비 쪽에서 mypy 가 «무엇을 검사하고 무엇을 안 하는지» (실측)
+
+    ================================  ==========================  ==================
+    형태                              mypy                        런타임
+    ================================  ==========================  ==================
+    ``spec['permission']``            타입·키 이름 «둘 다» 검사   안전 (80/80)
+    ``spec['response_media_type']``   **아무 말도 안 한다**       ★ KeyError 79/80
+    ``'x' in spec`` 뒤 ``spec['x']``  좁혀서 검사 (``str``)       안전
+    ``spec.get('오타')``              **아무 말도 안 한다**       조용히 ``None``/기본값
+    ================================  ==========================  ==================
+
+    ⚠️ **둘째 줄이 함정이다.** 「``.get`` 을 첨자로 바꾸면 검사된다」는 ``NotRequired``
+    키에 대해 **거짓**이고, 게다가 런타임 지뢰를 심는다. 선택 키는 ``in`` 가드를 거쳐
+    첨자로 읽어라 — 그것만이 검사되면서 안전한 유일한 형태다.
+    ⚠️ ``.get`` 은 키 «이름»을 전혀 안 본다. 오타는 영원히 조용하다.
+    """
+
+    request: Required[str | None]
+    response: Required[str]
+    permission: Required[str]
+    error_responses: NotRequired[dict[str, str]]
+    allowed_during_password_change: NotRequired[Literal[True]]
+    response_media_type: NotRequired[str]
+
+
+PLATFORM_API_OPERATIONS: dict[str, OperationSpec] = merge_surface_table('OPERATIONS')

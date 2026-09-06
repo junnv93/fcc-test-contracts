@@ -72,3 +72,10 @@ namespaces = true
 # `tests/test_kernel_imports_standalone.py` 가 커널의 모든 모듈을 실제로 import 한다.
 # 그 검사는 자원 누락·접두사 오류·패키징 누락을 한 번에 붉힌다.
 "fcc_test_kernel.domain.models" = ["*.json"]
+# ⚠️ PEP 561 마커. **이것이 없으면 이 배포판의 타입 선언은 소비 레인에서 «투명»하다** —
+# mypy 가 설치된 패키지를 미타입으로 보고 import 전체를 `Any` 로 만든다. 실측 2026-09-06:
+# platform 에서 `OperationSpec` 을 첨자로 읽어도 잘못된 대입·없는 키가 **0건** 잡혔고,
+# `ignore_missing_imports = True` 때문에 `[import-untyped]` 경고조차 안 떴다.
+# 즉 «아무 신호 없이 0건 검사»된다. 같은 venv 의 fastapi·psycopg·jwt 는 전부 이것을 싣는다 —
+# 서드파티는 싣고 형제 레인만 안 싣고 있었다.
+"fcc_test_kernel" = ["py.typed"]

@@ -15,6 +15,15 @@ Deep #3 (2026-05-24):
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # ⚠️ **런타임 import 가 아니다.** 이 배포판은 `dependencies = []` 이고
+    #    `fcc_test_kernel` 을 한 줄도 import 하지 않는다(실측 2026-09-06: 0건).
+    #    그 성질은 이 레인의 P0 이므로 깨뜨리지 않는다 — 주석만 빌린다.
+    #    소비 레인은 둘 다 설치하므로 그쪽 mypy 에서 해소된다(실증: 아래 참조).
+    from fcc_test_kernel.application.central_contract.api_contracts import OperationSpec
+
 from dataclasses import dataclass, field
 
 from fcc_test_contracts.common.identity import LEGACY_IDENTITY_ISSUER, canonical_issuer
@@ -140,7 +149,26 @@ class ApiAccessPolicy:
     빠뜨려도 silent 로 headless catalog 를 쓰던 위험 영구 제거.
     """
 
-    def __init__(self, operations: dict[str, dict]) -> None:
+    def __init__(self, operations: dict[str, OperationSpec]) -> None:
+        """⚠️ 주입 «경계»에서만 검사된다 — 안쪽은 검사되지 않는다.
+
+        실측 2026-09-06, 소비 레인에서::
+
+            ApiAccessPolicy({'x': {'permission': 1}})
+              주석 전   오류 0건
+              주석 후   [arg-type] dict[str, dict[str, int]] vs dict[str, OperationSpec]
+
+        ⚠️ 그런데 **안쪽(:156 `self._operations.get(operation)`)은 그대로 0이다.**
+        `.get` 은 키 «이름»을 전혀 안 보기 때문이다(오타도 조용하다). 그것을 첨자로
+        바꾸면 검사되지만 **바꾸면 안 된다** — 부재를 «차단»으로 읽는 fail-closed 축이고,
+        `platform_routes.py:548` 이 같은 규율을 같은 방식으로 지킨다. 한쪽만 바꾸면
+        대칭이 깨진다. 이 자리는 타입 검사를 포기하는 것이 옳다.
+
+        즉 이 주석이 사는 값은 **「호출자가 무엇을 주는가」 하나**다. 그것으로 충분한
+        이유: 이 클래스가 존재하는 이유가 *"Session API 가 주입을 빠뜨려도 silent 로
+        headless catalog 를 쓰던 위험"*(Deep #3)이고, 그 위험의 다음 판이 «틀린 모양의
+        표를 주는 것»이기 때문이다. 주입은 이제 모양까지 대조된다.
+        """
         if operations is None:
             raise TypeError(
                 'ApiAccessPolicy: operations dict 은 필수입니다 — '
