@@ -362,15 +362,73 @@ class TestTheDeclaredFeaturesMode(unittest.TestCase):
         }
         return crippled
 
+    def _draft_id_consumers(self, document: dict) -> set[str]:
+        """Operations ``document`` serves whose own route needs a ``draft_id``.
+
+        Derived from **the document under test** — its own ``routes`` block —
+        and never from the SSOT, which is the side the checker reads to decide
+        the same question. Two sides, two sources: a checker that consulted the
+        wrong route table would disagree with this set instead of being wrong
+        with it. ``TestThePublishedArtifactIsThisTree`` below names the rule
+        this follows — a comparison whose two sides share one source is an
+        identity, and an identity checks nothing.
+
+        Producers (the two doors) are deliberately outside this derivation. It
+        answers *who needs a draft*, not *who can make one*, so it stays
+        independent of the closure logic it is used to check.
+        """
+        routes = document.get('routes') or {}
+        return {
+            name for name in (document.get('operations') or {})
+            if '{draft_id}' in (routes.get(name) or {}).get('path', '')
+        }
+
     def test_the_closure_arm_is_wired_into_the_mode(self):
+        """Not merely *that* it fired — **which operations it caught**.
+
+        ``'dependency_closure_violation' in codes`` was the original assertion
+        and it is satisfied by any violation at all: a checker that passed the
+        SSOT's served set, or built the issue path from the wrong name, would
+        keep it green. ``test_a_door_with_no_key_is_red`` above pins the same
+        question one layer down, but it calls ``closure_issues`` directly — so
+        the *wiring between the checker and that function* was asserted only as
+        "something came back".
+
+        Raised to a set equality on the KC lane's measurement (2026-09-06),
+        which found the same gap from its own tree.
+        """
+        crippled = self._cannot_mint_a_draft()
+        expected = self._draft_id_consumers(crippled)
+
+        # ⚠️ Non-vacuity, and the number's subject is **the fixture, not the
+        # rule**. An empty derivation would satisfy the equality below against
+        # an empty violation set — two empty sets are what agreement looks
+        # like. The literal is expected to move: it is the count of `draft_id`
+        # consumers KC_DECLARED happens to reach, and the contract holds ten in
+        # total. Measured 2026-09-06, the three outside this scope are
+        # `export_test_plan_draft` (`test-plan-export`),
+        # `get_test_plan_generation_metadata` and
+        # `list_test_plan_generation_rows` (`test-plan-generation`) — and the
+        # KC lane names the first as its own next tranche. When this fails,
+        # the closure did not break: the fixture serves more or fewer
+        # operations than it did, and this number follows it.
+        self.assertEqual(
+            len(expected), 7,
+            f'KC_DECLARED now reaches {len(expected)} consumers of draft_id, not 7 — '
+            'update this anchor to match the fixture; nothing about the closure '
+            'rule has changed',
+        )
+
         result = check_api_contract_compatibility(
-            self._cannot_mint_a_draft(), self.ssot,
+            crippled, self.ssot,
             mode='declared-features', declared_features=KC_DECLARED,
         )
-        self.assertIn(
-            'dependency_closure_violation',
-            {issue.code for issue in result.issues},
-        )
+
+        flagged = {
+            issue.path.split('.', 1)[1] for issue in result.issues
+            if issue.code == 'dependency_closure_violation'
+        }
+        self.assertEqual(flagged, expected)
 
     def test_live_subset_admits_the_very_surface_the_closure_refuses(self):
         """The other half of the arm above — and the one that can rot silently.
