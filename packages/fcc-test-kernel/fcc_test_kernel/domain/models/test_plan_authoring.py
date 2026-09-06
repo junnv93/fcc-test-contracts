@@ -5,15 +5,21 @@
 끊는다 (validator 가 더 이상 generator 를 import 하지 않음). persistence (Phase D.1+)
 / API (Phase E) 는 본 모델 위에 올라간다.
 
-**파일명 결정 (Codex ratify 대상, 2026-05-31)**: ADR-0009 Architecture Summary 는
-`domain/models/test_plan.py` 를 지정했으나, 그 경로는 **이미 `TestPlanSnapshot`**
-(TestRunner→GUI 경계 DTO, Excel 런타임 스냅샷, `tests/test_test_plan_page_invariants.py`
-가 봉인하는 load-bearing 모듈) 이 선점했다. 둘은 같은 "test plan" 단어를 쓰지만
-다른 bounded context 다 — `TestPlanSnapshot` = 런타임 Excel 스냅샷, 본 모듈 =
-capability-driven **authoring/generation** 도메인. 관심사 혼합 회피를 위해 별도
-파일 `test_plan_authoring.py` 로 분리한다. (대안: 추후 `TestPlanSnapshot` 을
-`test_plan_snapshot.py` 로 rename 해 `test_plan.py` 를 비우는 별도 sprint — GUI
-어댑터/invariant 영향이라 Phase D.0 scope 밖.)
+**파일명 결정 (Codex ratify 대상, 2026-05-31 · 2026-09-06 갱신)**: ADR-0009
+Architecture Summary 는 `domain/models/test_plan.py` 를 지정했으나, 당시 그 경로는
+모노레포에서 **이미 `TestPlanSnapshot`** (TestRunner→GUI 경계 DTO, Excel 런타임
+스냅샷) 이 선점하고 있었다. 둘은 같은 "test plan" 단어를 쓰지만 다른 bounded
+context 다 — `TestPlanSnapshot` = 런타임 Excel 스냅샷, 본 모듈 = capability-driven
+**authoring/generation** 도메인. 관심사 혼합 회피를 위해 별도 파일
+`test_plan_authoring.py` 로 분리했다.
+
+여기 적혀 있던 대안(「`TestPlanSnapshot` 을 `test_plan_snapshot.py` 로 rename 해
+`test_plan.py` 를 비우는 별도 sprint — GUI 어댑터/invariant 영향이라 Phase D.0
+scope 밖」)은 **2026-09-06 에 이행됐다**: 그 모델이 커널로 상류 수리되면서
+`domain/models/test_plan_snapshot.py` 로 들어왔다. 이관이 어차피 모든 import 자리를
+건드렸으므로 미뤄 둔 비용이 그 김에 치러졌다. 따라서 이 패키지에서 `test_plan.py`
+는 «선점된» 이름이 아니라 **쓰지 않기로 한** 이름이다 — 두 bounded context 를
+이름으로 구별하기 위해서다.
 
 **위치 결정** (ADR-0009 Architecture Summary): `TestPlanRow` / `RowOrigin` /
 `ValidationIssue` 는 어느 provider 든 동일한 generic 개념이라 `domain/models/`
