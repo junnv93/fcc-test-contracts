@@ -20,6 +20,17 @@ paid for once already, in `mutation_credential_throttle.py`:
   Python targets are parsed after the write and a failure is ``NOT-APPLIED``.
   (2026-08-27; measured: one mutation orphaned an ``except`` and took 33 tests
   down while being tallied ``KILLED``.)
+* **Neither was a mutation the seal could not run.** The rule above is about
+  *syntax*, and it is enforced by parsing — but a mutation that renames the very
+  symbol the seal imports still parses, and then ``pytest`` exits **2**
+  (collection error) having run no test at all. Every non-zero exit read as
+  ``KILLED``, so *"the seal cannot even load"* and *"the seal caught it"* had one
+  value. Only exit **1** means tests ran and failed; ``2`` (interrupted / collection
+  error), ``3`` (internal error), ``4`` (usage error) and ``5`` (**nothing was
+  collected** — one typo in a seal path) are now ``NO-RUN``, which is neither
+  killed nor survived. (2026-09-06; measured here, and independently in the KC
+  provider lane, where a stubbed interpreter returned a constant non-zero code
+  and a whole battery reported ``1/1 red`` without ``pytest`` running once.)
 * **Restoration is from an in-memory backup, not ``git checkout``**, which would
   delete uncommitted work in the tree.
 * **Restoring the source is not restoring the module.** CPython validates a
@@ -196,24 +207,59 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
             print(f'{index:2}. [{mutation.axis}] {mutation.defect}')
         return 0
 
-    def _seal_verdict() -> str:
-        """``'pass'`` · ``'fail'`` · ``'hang'``. 셋은 서로 다른 사실이다."""
+    def _seal_verdict() -> tuple:
+        """``('pass'|'fail'|'hang'|'no-run', detail)``. 넷은 서로 다른 사실이다.
+
+        ⚠️ **`fail` 은 pytest 종료 코드 1 «만» 이다.** 옛 판은 0 이 아니면 전부
+        `fail` 이었고, 그래서 *"봉인이 결함을 보았다"* 와 *"봉인을 돌리지 못했다"* 가
+        한 값이었다. pytest 의 종료 코드는 그 둘을 이미 구분해 준다:
+
+        | | |
+        |---|---|
+        | 0 | 전부 통과 |
+        | **1** | 테스트가 돌았고 실패했다 — 이것만이 `KILLED` 의 근거다 |
+        | 2 | 중단 / **수집 오류** — 변이가 import 를 깨면 여기다 |
+        | 3 | 내부 오류 |
+        | 4 | 사용법 오류 |
+        | 5 | **수집 0건** — 봉인 경로 오타 하나면 여기다 |
+
+        실측 2026-09-06: 봉인이 import 하는 이름을 바꾸는 변이(문법은 멀쩡하므로 위
+        AST 가드를 통과한다)가 종료 코드 2 를 내고 `KILLED` 로 집계됐다. 테스트는
+        한 번도 돌지 않았다.
+        """
         result = _run([
             sys.executable, '-m', 'pytest', *seal_paths, '-q', '-x',
             '--tb=no', '-p', 'no:randomly',
         ], repo_root)
         if result is None:
-            return 'hang'
-        return 'pass' if result.returncode == 0 else 'fail'
+            return ('hang', '')
+        if result.returncode == 0:
+            return ('pass', '')
+        if result.returncode == 1:
+            return ('fail', '')
+        tail = (result.stdout or result.stderr or '').strip().splitlines()
+        return ('no-run', f'pytest exit {result.returncode}'
+                          + (f' — {tail[-1][:120]}' if tail else ''))
 
     def _seal_passes() -> bool:
-        return _seal_verdict() == 'pass'
+        return _seal_verdict()[0] == 'pass'
 
     # ⚠️ 미변이 트리가 먼저 green 이어야 한다. red 인 트리에서는 모든 변이가 "KILLED"
     # 로 보이고 배터리는 아무것도 증명하지 않는다.
     print('baseline: 미변이 트리에서 봉인을 확인한다 …', flush=True)
-    if not _seal_passes():
-        print('BASELINE RED — 변이를 적용하지 않는다. 봉인부터 고쳐라.')
+    baseline, detail = _seal_verdict()
+    if baseline != 'pass':
+        # ⚠️ 「봉인이 빨갛다」와 「봉인을 돌리지 못했다」는 처방이 다르다. 전자는
+        # 봉인을 고치는 일이고 후자는 배터리를 고치는 일이다 — 한 문구로 적으면
+        # 읽는 사람이 없는 결함을 찾으러 간다.
+        if baseline == 'no-run':
+            print(f'BASELINE NO-RUN — 봉인을 실행조차 하지 못했다 ({detail}). '
+                  '변이를 적용하지 않는다. 봉인 «경로»부터 확인하라.')
+        elif baseline == 'hang':
+            print(f'BASELINE HUNG — 봉인이 {int(SEAL_TIMEOUT_SECONDS)}s 안에 끝나지 '
+                  '않았다. 변이를 적용하지 않는다.')
+        else:
+            print('BASELINE RED — 변이를 적용하지 않는다. 봉인부터 고쳐라.')
         return 2
     print('baseline OK\n')
 
@@ -240,6 +286,7 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
     survived = []
     not_applied = []
     hung = []
+    no_run = []
     try:
         for index, mutation in enumerate(mutations, 1):
             problem = None
@@ -276,12 +323,19 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
                       f'— {problem}')
                 continue
 
-            outcome = _seal_verdict()
+            outcome, detail = _seal_verdict()
             for path in touched:
                 _write(repo_root / path, backups[path])
             for path, _o, _n, _c in mutation.sites:
                 backups.pop(path, None)
 
+            if outcome == 'no-run':
+                # ⚠️ KILLED 가 아니다 — 봉인이 그 결함을 **보았다는 증거가 없다**.
+                # 테스트가 한 번도 돌지 않았다는 사실만 안다.
+                no_run.append((index, mutation, detail))
+                print(f'{index:2}. NO-RUN   [{mutation.axis}] {mutation.defect} '
+                      f'— {detail}', flush=True)
+                continue
             if outcome == 'hang':
                 # ⚠️ 매달림은 KILLED 가 아니다 — 봉인이 그 결함을 **보았다는 증거가
                 # 없다**. 그 변이가 코드를 무한 루프로 만들었다는 사실만 안다.
@@ -301,9 +355,15 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
             _restore_all()
 
     total = len(mutations)
-    killed = total - len(survived) - len(not_applied) - len(hung)
+    killed = total - len(survived) - len(not_applied) - len(hung) - len(no_run)
     print(f'\n{killed}/{total} KILLED · {len(survived)} SURVIVED · '
-          f'{len(not_applied)} NOT-APPLIED · {len(hung)} HUNG')
+          f'{len(not_applied)} NOT-APPLIED · {len(hung)} HUNG · '
+          f'{len(no_run)} NO-RUN')
+    if no_run:
+        print('\n⚠️ NO-RUN 은 "봉인이 잡았다" 가 아니다 — 봉인이 **실행되지 않았다**. '
+              'pytest 종료 코드 1 만이 "테스트가 돌았고 실패했다" 이다:')
+        for index, mutation, why in no_run:
+            print(f'   {index:2}. [{mutation.axis}] {mutation.defect} — {why}')
     if hung:
         print('\n⚠️ HUNG 은 "봉인이 잡았다" 가 아니다 — 그 변이가 코드를 매달았고, '
               '봉인이 무엇을 보았는지는 알 수 없다:')
@@ -317,4 +377,4 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
         print('\n⚠️ SURVIVED — 이 결함들은 봉인이 보지 못한다:')
         for index, mutation in survived:
             print(f'   {index:2}. [{mutation.axis}] {mutation.defect}')
-    return 0 if not (survived or not_applied or hung) else 1
+    return 0 if not (survived or not_applied or hung or no_run) else 1

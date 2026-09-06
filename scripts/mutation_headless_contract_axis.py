@@ -24,6 +24,32 @@ stops matching, nothing is mutated, and the battery reports a kill it never
 made. The harness calls that NOT-APPLIED and fails, and
 ``TestTheMutationBatteryCanStillFire`` asserts the same property from outside.
 
+## ⚠️ Two of the nine are NO-RUN, and that is the honest answer (2026-09-06)
+
+Until 2026-09-06 this battery reported **9/9 KILLED**. Two of those kills were
+never made: the harness read every non-zero ``pytest`` exit as *"the seal went
+red"*, and these two exit **2** — a collection error, with no test run at all.
+
+They are the two that duplicate a contract key on a **real** surface module
+(``the merge refuses to lose a contract`` and ``schema ownership is derived from
+reachability``). ``merge_surface_table`` raises ``DuplicateContractKeyError``
+while the registry is being **imported**, so ``tests/test_headless_contract_axis.py``
+cannot load and nothing in it observes anything.
+
+⚠️ **The defence works — that is what the import error is.** What did not happen
+is a *seal* seeing it, and this battery measures seals. The distinction is the
+same one this repository already drew for parse errors: *"it did not see the
+defect, it saw a parse error."*
+
+The property those two aim at (**the guard sits on the path the real modules
+take**) is worth measuring and is not measured by
+``test_two_surfaces_declaring_the_same_key_raise`` /
+``test_the_shared_table_collides_like_any_other_source``, which build synthetic
+surfaces. Re-expressing them so a test can observe the refusal — rather than
+being taken down by it — is open work, deliberately not done in the change that
+merely stopped miscounting them. Until then this battery exits non-zero, and it
+should: two of its nine entries do not measure a seal.
+
 ## Order
 
 ⚠️ **Commit before running.** The battery edits tracked files, and the surface
