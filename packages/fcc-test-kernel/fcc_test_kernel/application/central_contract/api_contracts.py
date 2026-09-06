@@ -22,8 +22,18 @@ route/permission/schema/operation 선언은 ``surface_*`` 모듈이 갖고, 표�
 경계가 「표 종류」가 아니라 「operation 표면」인 이유는
 ``.claude/exec-plans/completed/2026-08-29-central-contract-decomposition.md`` §1 이 갖는다.
 """
-from __future__ import annotations
-
+# ⚠️ **``from __future__ import annotations`` 를 여기 되돌리지 마라.**
+# 그 줄이 있으면 어노테이션이 문자열이 되고, CPython 3.12 의 ``TypedDict`` 는 문자열
+# 안의 ``NotRequired`` 를 «못 본다». 그러면 아래 ``OperationSpec`` 이 런타임에 자기를
+# 이렇게 잘못 말한다(실측 2026-09-06, kernel-v0.5.1 · python 3.12.3)::
+#
+#     __required_keys__   여섯 «전부»       (선언은 셋)
+#     __optional_keys__   빈 집합            (선언은 셋)
+#     그 필수집합을 실제로 채우는 operation   0 / 80
+#
+# ⚠️ mypy 는 «옳게» 본다 — 그래서 정적 축에서는 아무것도 빨개지지 않는다. 오늘은
+# ``__required_keys__`` 소비자가 없어 잠복이지만, 생기는 날 80건 전부를 「필수 키
+# 누락」으로 거절한다. 그 줄을 지운 것이 유일한 수리다(전방 참조 0건이라 비용도 0).
 from typing import Literal, NotRequired, Required, TypedDict
 
 from fcc_test_kernel.application.central_contract.api_parameters import (
