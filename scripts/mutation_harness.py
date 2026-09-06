@@ -434,15 +434,26 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
             print(f'   {index:2}. [{mutation.axis}] {mutation.defect} — {why}')
     for index, mutation, observed in unexpected:
         if observed == 'SURVIVED':
+            # ⚠️ 이것은 **그 봉인 하나**에 대한 진술이다. 아래 대조군 문구와 접으면
+            # 안 된다 — 평범한 생존마다 「이 실행의 모든 판정이 뜻을 잃는다」가
+            # 찍히고, 매번 나오는 경고는 아무도 읽지 않으며, 그러면 대조군을 둔
+            # 이유가 사라진다.
             print(f'\n⚠️ SURVIVED — 이 결함을 봉인이 보지 못한다:'
-                  f'\n   {index:2}. [{mutation.axis}] {mutation.defect}')
+                  f'\n   {index:2}. [{mutation.axis}] {mutation.defect}'
+                  f'\n   (이 실행의 다른 판정은 그대로 유효하다 — 고칠 곳은 그 봉인이다.)')
         else:
             # ⚠️ 대조군이 죽었다 = 이 실행의 «모든» KILLED 가 뜻을 잃는다. 변이와
             # 무관한 무언가가 봉인을 죽이고 있고, 그 무언가는 다른 변이들 아래에도
             # 있었다. 개별 결과가 아니라 실행 전체에 대한 진술이다.
             print(f'\n🔴 대조군이 KILLED 다 — 이 실행의 모든 판정이 뜻을 잃는다.'
                   f'\n   {index:2}. [{mutation.axis}] {mutation.defect}'
-                  f'\n   관측하지 못해야 할 변이를 봉인이 죽였다. 변이와 무관한 것이'
-                  f' 봉인을 죽이고 있으므로,\n   이 실행의 다른 KILLED 도 그것으로'
-                  f' 설명될 수 있다. 배터리부터 고쳐라.')
+                  f'\n   관측하지 못해야 할 변이를 봉인이 죽였다. 이 실행의 다른'
+                  f' KILLED 도 같은 것으로 설명될 수 있다.'
+                  f'\n'
+                  f'\n   ⚠️ 원인이 둘이고 **② 를 먼저** 확인하라:'
+                  f'\n     ① 변이와 무관한 무언가가 봉인을 죽인다 (기계가 오염시켰다).'
+                  f'\n     ② 이 대조군이 애초에 무관측이 아니다 — 봉인이 정당하게 봤다.'
+                  f'\n   실측 2026-09-06: 이 저장소의 첫 대조군 후보가 주석 «한 줄'
+                  f' 추가»였는데,\n   줄 수 래칫이 124 > 123 으로 «정당하게» 관측했다.'
+                  f' 배터리는 멀쩡했고\n   대조군이 틀렸다. ② 가 먼저인 이유다.')
     return 0 if not (unexpected or not_applied or hung or no_run) else 1
