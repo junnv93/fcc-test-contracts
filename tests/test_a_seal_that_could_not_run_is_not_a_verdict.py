@@ -152,6 +152,49 @@ class TestTheVerdictVocabularyKeepsThemApart(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout[-900:])
 
 
+class TestOnlyOneCodeIsEverEvidence(unittest.TestCase):
+    """``verdict_for`` sealed across its whole domain, not only where a probe reaches.
+
+    The class below produces real situations and feeds back whatever ``pytest``
+    returned — which is the right way to learn *which* code a situation makes,
+    and it necessarily leaves the rest of the domain untouched. Measured
+    2026-09-06: those probes exercise ``0``, ``1``, ``2``, ``4`` and ``5``, so
+    ``3`` (internal error) and everything above ``5`` never reach the classifier
+    at all. A second exception added there would be seen by nothing.
+
+    That matters because the second exception is the failure this whole axis is
+    about: the original defect *was* ``returncode != 0`` meaning ``fail``, and
+    the repair is one narrow exception. Narrow exceptions grow. The KC provider
+    lane's environment already produces codes this repository never will — a
+    stubbed interpreter answering ``49``, a shell answering ``9009`` — and the
+    rule that keeps both lanes honest is not a list of codes but a sentence:
+    **only ``1`` is evidence that a test ran.**
+
+    ⚠️ This asserts the *rule*, never an attribution. Which situation yields
+    which number is the class below's question, and it answers it by
+    measurement, because a written-down attribution is exactly what went stale:
+    two lanes independently wrote that a mistyped seal path exits ``5`` — it is
+    ``4`` — and no check contradicted either of them, since both classify as
+    ``NO-RUN`` and nothing downstream behaves differently. A statement that
+    changes no behaviour has no natural gate.
+    """
+
+    def test_zero_is_the_only_pass(self):
+        self.assertEqual(verdict_for(0), 'pass')
+
+    def test_one_is_the_only_evidence_that_a_test_ran_and_failed(self):
+        self.assertEqual(verdict_for(1), 'fail')
+
+    def test_every_other_code_says_the_run_did_not_happen(self):
+        """Including the ones this repository cannot produce, and 128+N signals."""
+        for code in [*range(2, 16), 49, 130, 137, 9009]:
+            with self.subTest(returncode=code):
+                self.assertEqual(
+                    verdict_for(code), 'no-run',
+                    f'exit {code} is read as evidence about the seal — only 1 is',
+                )
+
+
 class TestTheExitCodeTableIsMeasuredNotRecited(unittest.TestCase):
     """Each situation is *produced*, and the code ``pytest`` returns is read back.
 
