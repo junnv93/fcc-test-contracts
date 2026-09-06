@@ -74,6 +74,15 @@ BATTERY = textwrap.dedent(
     )
     CASES = {
         'honoured': (CONTROL, GENUINE),
+        # An ordinary miss: the seal genuinely fails to catch this, and the
+        # default expectation applies. Nothing about the run is invalidated.
+        'survivor': (
+            Mutation(
+                axis='probe', defect='a defect this seal does not look at',
+                path='subject.py', old='# a comment nothing reads',
+                new='# a comment nothing reads at all', occurrences=1,
+            ),
+        ),
         'contradicted': (
             # Same flag, but pointed at something the seal *does* see. The
             # claim "nothing observes this" is false and must be refused.
@@ -148,6 +157,41 @@ class TestAControlLivesInTheSpecification(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0, result.stdout[-900:])
         self.assertIn('대조군이 KILLED', result.stdout, result.stdout[-900:])
         self.assertIn('이 실행의 다른 KILLED', result.stdout, result.stdout[-900:])
+
+    def test_an_ordinary_survival_does_not_claim_the_run_is_invalid(self):
+        """The other direction, and the one that rots quietly.
+
+        A seal that misses a defect is a statement about **that seal**. Folding
+        it into the control's message prints *"every verdict in this run is
+        meaningless"* next to every ordinary survival — and a warning that
+        appears every time is read by nobody, which removes the reason the
+        control exists.
+
+        Measured 2026-09-06: collapsing the two branches passed the whole
+        harness suite (21 tests). Nothing was positioned to notice.
+        """
+        result = self._battery('survivor')
+
+        verdict = self._verdicts(result)[0]
+        self.assertIn('SURVIVED', verdict, result.stdout[-900:])
+        self.assertIn('봉인이 보지 못한다', result.stdout, result.stdout[-900:])
+        self.assertNotIn('대조군이 KILLED', result.stdout, result.stdout[-900:])
+        self.assertNotIn('배터리부터', result.stdout, result.stdout[-900:])
+        self.assertNotEqual(result.returncode, 0, result.stdout[-900:])
+
+    def test_the_invalidation_message_names_the_likelier_cause_first(self):
+        """A control that comes back KILLED has two causes, not one.
+
+        This repository met the second one first: its opening control candidate
+        added a comment **line**, and a line-count ratchet observed it — the
+        battery was clean and the control was wrong. A message naming only
+        *"the machinery contaminated the run"* sends the reader to audit
+        machinery that is fine.
+        """
+        stdout = self._battery('contradicted').stdout
+
+        self.assertIn('원인이 둘', stdout, stdout[-900:])
+        self.assertIn('무관측이 아니다', stdout, stdout[-900:])
 
     def test_the_default_expectation_is_still_a_kill(self):
         """Control by declaration only. An entry that says nothing must be
