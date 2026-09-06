@@ -38,7 +38,29 @@ name = "fcc-test-kernel"
 #          레인이 아닌 이유다** — ADR-0010 D-8 은 계약 레인의 provider 어휘를
 #          금지하지만 커널은 접두사로 충돌만 없애므로 어휘를 묻지 않는다
 #          (fcc-test-platform ADR-0001 §그리고 9개를 분류할 필요가 없다).
-version = "0.5.3"
+#   0.5.4  🔴 **파손을 담는다** — `DbCursor` 가 실물 DB-API 드라이버를 탈락시키고
+#          있었다. `execute` 반환 `None`→`object`(PEP 249 는 정의하지 않는다) ·
+#          인자를 위치 전용으로 · `rowcount` 를 읽기 전용 property 로.
+#          소비 레인이 `cursor.execute(statement=…, parameters=…)` 처럼 «키워드»로
+#          부르고 있으면 그날 빨개진다(fcc-test-platform 전수 0건 확인, 다른
+#          소비자는 세지 않았다). 함께: `OperationSpec` 이 런타임에 자기를 잘못
+#          말하던 것(`from __future__ import annotations` 때문에 `NotRequired` 가
+#          안 보여 `__required_keys__` 가 여섯 전부였다 — 실측 0/80 이 그 집합을
+#          채웠다). mypy 는 옳게 봤으므로 정적 축은 침묵하고 있었다.
+#
+#          ⚠️ **0.5.2 도 0.5.3 도 건너뛴 것이 아니다.** 이 브랜치가 열려 있는 동안
+#          형제 배송 둘이 그 번호를 차례로 가져갔다 — PR #48(`93fbf12`, 태그
+#          `kernel-v0.5.2` 발행됨) · PR #51(`e8076bf`, 선언만, 태그 아직 없음).
+#          이 브랜치는 그때마다 다음 번호로 물러났다.
+#
+#          🔴 **그리고 루트 `pyproject.toml` 이 기록한 0.1.19 사고가 여기서 실제로
+#          재현됐다** (2026-09-07 실측). 재기저할 때 `version = "0.5.3"` 줄은 양쪽이
+#          «같은 값»을 써서 **충돌 없이 병합됐고**, 충돌한 것은 이 주석 블록뿐이다.
+#          주석이 없었다면 git 은 조용했을 것이고, 먼저 `kernel-v0.5.3` 을 내는 쪽의
+#          태그에 나머지 한쪽의 변경이 들어 있지 않았을 것이다. **버전 충돌은 병합
+#          충돌과 모양이 다르다** — 그것이 `test_release_version_is_unclaimed` 가
+#          존재하는 이유이고, 그 봉인은 «커밋 뒤»에만 답한다.
+version = "0.5.4"
 description = "Prefixed shared kernel for the FCC lanes — logging and notification primitives that both the central platform and the provider runtime reach."
 # requires-python = 두 소비 레인의 런타임 베이스(`python:3.11-slim`)에서 파생.
 requires-python = ">=3.11"

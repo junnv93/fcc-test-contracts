@@ -45,7 +45,15 @@ name = "fcc-test-contracts"
 #         진입점이 자기 트리를 올리는지 실행으로 확인. ⚠️ **wire 파손을 담는다** —
 #         소비 레인은 이 번호로 pin 하기 전에 두 축을 함께 옮겨야 한다
 #         (생성 축 `job_id`→`generation_job_id`, 측정 축 `{job_id}`→`{job_uuid}`).
-version = "0.1.25"
+# 0.1.26  `apply_correlation_response_headers` 의 첫 인자를 «쓰는 것만» 요구하도록
+#         좁힌다(`MutableMapping[str, str]` → `__setitem__` 하나짜리 Protocol).
+#         ⚠️ **파손이 아니라 완화다** — 예전 선언을 만족하던 것은 전부 새 선언도
+#         만족한다. 반대로 예전에는 starlette 의 `MutableHeaders` 가 탈락했다
+#         (`pop`·`popitem`·`clear` 부재로 구조적 `MutableMapping` 이 아니다).
+#         함께: `ApiAccessPolicy` docstring 정정(§8 이분법이 거짓이었다는 것과,
+#         그럼에도 이 자리의 `.get` 은 `missing_permission_contract` 라는 선언된
+#         결과를 지고 있다는 것).
+version = "0.1.26"
 description = "Dependency-free shared web-boundary kernel: provider API DTOs, the route/operation/schema contract, the compatibility checker, and the HTTP-boundary primitives three lanes share."
 # requires-python = infra/central/Dockerfile.api 의 런타임 베이스 이미지
 # (`FROM python:3.11-slim`)에서 파생.

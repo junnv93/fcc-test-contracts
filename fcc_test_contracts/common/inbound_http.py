@@ -22,7 +22,8 @@ Scope:
 - ``apply_correlation_response_headers(response_headers, correlation)`` echoes
   ``X-Request-Id`` + canonical ``traceparent`` (always) + ``tracestate``
   (only when non-empty — matches P1-A behaviour). Caller passes a
-  ``MutableMapping[str, str]``-shaped response headers object.
+  response headers object that supports ``headers[name] = value``
+  (that assignment is the only thing it needs — see ``_SupportsHeaderAssignment``).
 - ``WsTraceContext`` + ``extract_ws_trace_context(websocket)`` — WebSocket
   upgrade resolves trace context via two transports (header first, query
   string fallback). RFC unspecified for WS, so we support both: the header
@@ -48,7 +49,7 @@ from __future__ import annotations
 
 import uuid as _uuid
 from dataclasses import dataclass
-from typing import Any, Mapping, MutableMapping, Tuple
+from typing import Any, Mapping, MutableMapping, Protocol, Tuple
 
 from fcc_test_contracts.common.correlation import (
     format_traceparent_unchecked,
@@ -259,8 +260,31 @@ def extract_ws_trace_context(websocket: Any) -> WsTraceContext:
     )
 
 
+class _SupportsHeaderAssignment(Protocol):
+    """응답 헤더를 «넣을 수만» 있으면 된다.
+
+    ⚠️ 예전 선언은 ``MutableMapping[str, str]`` 이었다. 그런데 아래 함수가 쓰는 것은
+    ``__setitem__`` **하나뿐**이고, ``MutableMapping`` 은 그 밖에
+    ``pop`` · ``popitem`` · ``clear`` · ``__delitem__`` · ``__iter__`` · ``__len__`` 을
+    요구한다. 그래서 **실제로 넘어오는 것이 탈락했다** — Starlette 의
+    ``MutableHeaders`` 는 헤더를 넣고 지울 수 있지만 ``pop``/``popitem``/``clear`` 가
+    없어 구조적으로 ``MutableMapping`` 이 아니다(실측 2026-09-06, 소비 레인
+    ``platform_routes.py`` 의 상관관계 미들웨어에서 ``[arg-type]``).
+
+    ⚠️ **이것은 관대해진 것이 아니라 정확해진 것이다.** 넓게 요구하면 검사기가 막는
+    것은 「우리가 안 쓰는 것을 안 가진 실물」이고, 그것은 결함이 아니다. 반대로
+    ``__setitem__`` 이 없는 것은 여전히 막힌다.
+
+    ⚠️ ``__all__`` 에 넣지 않는다 — 구조적 타입이라 호출자가 이 «이름»을 알 필요가
+    없고, 계약 패키지의 공개 표면은 공급 폐포 축이 세는 대상이다.
+    """
+
+    def __setitem__(self, name: str, value: str) -> None:
+        ...
+
+
 def apply_correlation_response_headers(
-    response_headers: MutableMapping[str, str],
+    response_headers: _SupportsHeaderAssignment,
     correlation: IncomingCorrelation,
 ) -> None:
     """Echo OBS-1 / P1-1 / P1-A identifiers to the outbound response.

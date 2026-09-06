@@ -158,11 +158,34 @@ class ApiAccessPolicy:
               주석 전   오류 0건
               주석 후   [arg-type] dict[str, dict[str, int]] vs dict[str, OperationSpec]
 
-        ⚠️ 그런데 **안쪽(:156 `self._operations.get(operation)`)은 그대로 0이다.**
-        `.get` 은 키 «이름»을 전혀 안 보기 때문이다(오타도 조용하다). 그것을 첨자로
-        바꾸면 검사되지만 **바꾸면 안 된다** — 부재를 «차단»으로 읽는 fail-closed 축이고,
-        `platform_routes.py:548` 이 같은 규율을 같은 방식으로 지킨다. 한쪽만 바꾸면
-        대칭이 깨진다. 이 자리는 타입 검사를 포기하는 것이 옳다.
+        ⚠️ 그런데 **안쪽(`authorize`)은 그대로 0이다.** `.get` 은 키 «이름»을 전혀
+        안 보기 때문이다(오타도 조용하다).
+
+        🔴 **여기 있던 근거가 틀렸다 — 2026-09-06 정정.** 원문은 *"첨자로 바꾸면
+        검사되지만 바꾸면 안 된다 — fail-closed 축이고 `platform_routes.py:548` 이 같은
+        규율을 같은 방식으로 지킨다"* 였다. 두 문장 다 더는 참이 아니다:
+
+        ① **거짓 이분법이었다.** 「fail-closed 냐 타입 검사냐」가 아니라 셋이다::
+
+            OPS.get(op) or {} + .get()        fail-closed ✅   검사 ❌
+            OPS[op]                           fail-closed ❌   검사 ✅
+            OPS.get(op) + `is None` + 첨자    fail-closed ✅   검사 ✅   ← 셋째
+
+        ② **`platform_routes` 는 이제 셋째 형태다**(소비 레인 PR #133). 그러니 대칭
+           논증은 방향이 반대가 됐다 — 그대로 두는 쪽이 「한쪽만 다른」 것이다.
+
+        ⚠️ **그래도 결론은 살아남는다. 근거가 다르다.**
+
+        `authorize` 는 **이미 셋째 형태의 절반**이다 — `.get(operation)` 뒤에
+        `if operation_contract is None:` 분기가 있다. 남은 `.get('permission')` 하나가
+        `platform_routes` 와 «같은 모양이 아니다»: 바로 아래에
+        ``reason='missing_permission_contract'`` 라는 **선언된 결과**가 있고,
+        `tests/test_headless_access_policy_phase49.py::test_missing_permission_contract_is_denied`
+        가 `permission` 키 없는 표를 주입해 그것을 봉인한다. 첨자로 바꾸면 그 분기가
+        `KeyError` 로 바뀌어 **사라진다** — 이 클래스가 존재하는 이유(Deep #3: 주입된
+        catalog 가 틀릴 수 있다)를 정면으로 무르는 변경이다.
+
+        즉 여기서 `.get` 은 검사를 판 대가가 아니라 **짐을 지고 있다.**
 
         즉 이 주석이 사는 값은 **「호출자가 무엇을 주는가」 하나**다. 그것으로 충분한
         이유: 이 클래스가 존재하는 이유가 *"Session API 가 주입을 빠뜨려도 silent 로
