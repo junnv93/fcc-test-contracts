@@ -99,7 +99,12 @@ namespaces = true
 #    아티팩트의 착지지를 패키지 **안**으로 옮기고(매니페스트가 SSOT) 여기서 싣는다.
 #    `.extraction-layout.json` 도 함께 실어야 한다 — 그 기록이 없으면 설치된 레인은
 #    자기가 무엇을 어디로 옮겼는지 말할 수 없고, 소비자는 규약으로 추측하게 된다.
-"fcc_test_contracts" = [".extraction-layout.package.json"]
+# ⚠️ PEP 561 마커 — 커널의 같은 줄과 «한 판에» 나가야 한다. 마커가 없으면 이 배포판의
+#    타입 선언은 소비 레인에서 투명하고, platform 의 `ignore_missing_imports = True` 가
+#    그 사실마저 숨긴다(실측 2026-09-06: 잘못된 대입·없는 키 0건, 경고 0건).
+#    ⚠️ 커널만 넣으면 절반이다 — `common/access_policy.py` 가 이 패키지에 있으므로
+#    그 주석도 함께 `Any` 가 된다.
+"fcc_test_contracts" = [".extraction-layout.package.json", "py.typed"]
 "fcc_test_contracts.artifacts" = ["*.json", "*.md"]
 
 # ⚠️ 사본이다 — TOML 에는 include 가 없다. 그래서 루트 pyproject.toml 의
