@@ -18,7 +18,8 @@ validation alone (arity + "all strings") let a forged cursor such as
 ``invalid input syntax`` — surfaced to the caller as **503 UPSTREAM_UNAVAILABLE**,
 i.e. a client-forged token reported as a central outage. Live PostgreSQL 16
 confirms both sqlstates (``22007`` timestamp, ``22P02`` uuid); see
-``scripts/platform_keyset_cursor_live_proof.py``. Each keyset therefore declares
+``fcc_test_platform.keyset_cursor_live_proof_cli`` (console command
+``fcc-platform-keyset-cursor-live-proof``). Each keyset therefore declares
 its column value domains and this module rejects out-of-domain values at the
 boundary, where the answer is 400.
 
