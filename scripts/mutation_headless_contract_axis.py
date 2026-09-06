@@ -126,6 +126,23 @@ def build_mutations() -> tuple[Mutation, ...]:
     prefix_anchor = f'SURFACE_PREFIXES = (\n    {host_prefix!r},'
 
     return (
+        # ⚠️ 대조군이 첫 자리에 있다. 이 배터리가 무엇을 잡는지가 아니라 **이 배터리를
+        # 믿어도 되는지**를 묻는다: 봉인이 관측할 수 없는 변이(주석 한 단어, 줄 수
+        # 불변 — 크기 래칫도 안 움직인다)가 KILLED 로 오면, 변이와 무관한 무언가가
+        # 봉인을 죽이고 있고 그 실행의 다른 KILLED 는 전부 뜻을 잃는다.
+        #
+        # 손으로 한 번 넣어 보는 것으로는 그날에 대해서만 답한다. KC provider 레인이
+        # 2026-09-06 에 정확히 그 차이로 하루를 잃었다 — 새 검사 둘이 배터리 «안»의
+        # 환경에서 다르게 동작해 모든 변이가 KILLED 였고, 대조군이 명세에 없어서
+        # 그 균일함을 아무도 읽지 않았다.
+        Mutation(
+            axis='CONTROL',
+            defect='주석 한 단어 — 어떤 봉인도 관측하지 않는다',
+            path=host_path,
+            old='#: Route prefixes this surface owns.',
+            new='#: Route prefixes this surface owns!',
+            expect='SURVIVED',
+        ),
         Mutation(
             axis='membership is derived from the path',
             defect='a surface claims another surface\'s prefix',
