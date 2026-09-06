@@ -33,11 +33,24 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
+
+#: A battery's per-mutation verdict line. ``run_battery`` prints it as
+#: ``f'{index:2}. {label} [{axis}] {defect}'`` — at most one leading space —
+#: while its end-of-run summaries indent the same text by three more. Selecting
+#: on the marker alone catches both, which is how the first draft of these
+#: assertions counted one mutation twice.
+_VERDICT_LINE = re.compile(r'^ ?\d+\. ')
+
+
+def _verdict_lines(stdout: str) -> list:
+    return [line for line in stdout.splitlines() if _VERDICT_LINE.match(line)]
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HARNESS = PROJECT_ROOT / 'scripts' / 'mutation_harness.py'
@@ -121,10 +134,18 @@ class TestTheBatteryHandsBackTheTreeItBorrowed(unittest.TestCase):
         return json.loads(probe.stdout)
 
     def test_the_battery_distinguished_the_two_mutations(self):
-        """Non-vacuity. A battery that could not run proves nothing below."""
-        self.assertIn('KILLED', self.battery.stdout, self.battery.stderr[-800:])
-        self.assertIn('SURVIVED', self.battery.stdout, self.battery.stderr[-800:])
-        self.assertIn('1/2 KILLED', self.battery.stdout)
+        """Non-vacuity. A battery that could not run proves nothing below.
+
+        ⚠️ Asserted on the **per-mutation verdict lines**, not on the tally
+        string. The first draft read ``'1/2 KILLED'`` and broke the day the
+        tally grew a control column — for a reason that has nothing to do with
+        what this test is about. A summary line is a rendering; the verdicts
+        are the fact.
+        """
+        verdicts = _verdict_lines(self.battery.stdout)
+        self.assertEqual(len(verdicts), 2, self.battery.stdout[-900:])
+        self.assertTrue(any('SURVIVED' in line for line in verdicts), verdicts)
+        self.assertTrue(any('KILLED' in line for line in verdicts), verdicts)
         self.assertNotIn('NOT-APPLIED [', self.battery.stdout)
 
     def test_the_source_comes_back(self):

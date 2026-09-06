@@ -37,11 +37,24 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
 import textwrap
 import unittest
+
+#: A battery's per-mutation verdict line. ``run_battery`` prints it as
+#: ``f'{index:2}. {label} [{axis}] {defect}'`` — at most one leading space —
+#: while its end-of-run summaries indent the same text by three more. Selecting
+#: on the marker alone catches both, which is how the first draft of these
+#: assertions counted one mutation twice.
+_VERDICT_LINE = re.compile(r'^ ?\d+\. ')
+
+
+def _verdict_lines(stdout: str) -> list:
+    return [line for line in stdout.splitlines() if _VERDICT_LINE.match(line)]
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HARNESS = PROJECT_ROOT / 'scripts' / 'mutation_harness.py'
@@ -120,13 +133,21 @@ class TestTheVerdictVocabularyKeepsThemApart(unittest.TestCase):
         )
         return result
 
+    def _verdict_line(self, result: subprocess.CompletedProcess) -> str:
+        """The one numbered verdict line this single-mutation battery printed."""
+        lines = _verdict_lines(result.stdout)
+        self.assertEqual(len(lines), 1, result.stdout[-900:])
+        return lines[0]
+
     def test_a_mutation_the_seal_cannot_run_is_not_killed(self):
         """The assertion that was red before 2026-09-06."""
         result = self._battery('unrunnable')
 
-        self.assertIn('NO-RUN', result.stdout, result.stdout[-900:])
-        self.assertIn('0/1 KILLED', result.stdout, result.stdout[-900:])
-        self.assertNotIn('KILLED  [', result.stdout)
+        # ⚠️ The verdict line, not the tally string — see the note in
+        # test_the_battery_distinguished_the_two_mutations for why.
+        verdict = self._verdict_line(result)
+        self.assertIn('NO-RUN', verdict, result.stdout[-900:])
+        self.assertNotIn('KILLED', verdict, result.stdout[-900:])
 
     def test_the_refusal_names_what_actually_happened(self):
         """A verdict a reader cannot act on is a verdict they will ignore."""
@@ -146,9 +167,9 @@ class TestTheVerdictVocabularyKeepsThemApart(unittest.TestCase):
         """
         result = self._battery('genuine')
 
-        self.assertIn('KILLED', result.stdout, result.stdout[-900:])
-        self.assertIn('1/1 KILLED', result.stdout, result.stdout[-900:])
-        self.assertNotIn('NO-RUN   [', result.stdout)
+        verdict = self._verdict_line(result)
+        self.assertIn('KILLED', verdict, result.stdout[-900:])
+        self.assertNotIn('NO-RUN', verdict, result.stdout[-900:])
         self.assertEqual(result.returncode, 0, result.stdout[-900:])
 
 

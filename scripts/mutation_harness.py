@@ -86,6 +86,27 @@ class Mutation:
     보고됐다 — 식별자 출처(화이트리스트)가 함께 돌아오지 않으면 그 호출은 과금하지
     않기 때문이다. 무효 변이와 살아남은 변이는 출력이 같으므로, 표현할 수 없는 결함은
     표현할 수 있게 만들어야 한다.
+
+    ⚠️ ``expect`` exists so a battery can carry its own **control** — a mutation
+    nothing observes, which must come back ``SURVIVED``. Without it the control
+    can only be run by hand, once, and a hand-run control answers only about the
+    day it was run.
+
+    The control does not test the seal. It tests **this battery**: if a mutation
+    that changes nothing observable comes back ``KILLED``, then something is
+    killing the seal for reasons unrelated to any mutation, and every other
+    ``KILLED`` on the run means nothing. The baseline check answers the same
+    question once, before the first write; a control answers it *under the same
+    conditions the mutations run in* — which is where the KC provider lane's
+    battery diverged, its new probes behaving differently inside the battery
+    environment than outside and turning the whole run red for a reason no
+    mutation caused (measured there 2026-09-06: every mutation "killed", and the
+    control killed too).
+
+    ⚠️ A control is not a place to park a mutation the seal fails to catch.
+    ``SURVIVED`` where ``KILLED`` was expected is still a failure and still
+    named; ``expect='SURVIVED'`` is a claim that **nothing could observe this**,
+    and it is refused the moment something does.
     """
 
     axis: str
@@ -95,6 +116,7 @@ class Mutation:
     new: str
     occurrences: int = 1
     also: tuple = ()
+    expect: str = 'KILLED'
 
     @property
     def sites(self) -> tuple:
@@ -314,10 +336,10 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
         except (ValueError, OSError):
             pass
 
-    survived = []
     not_applied = []
     hung = []
     no_run = []
+    unexpected = []
     try:
         for index, mutation in enumerate(mutations, 1):
             problem = None
@@ -376,20 +398,26 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
                       flush=True)
                 continue
             killed = outcome == 'fail'
-            verdict = 'KILLED  ' if killed else 'SURVIVED'
-            print(f'{index:2}. {verdict} [{mutation.axis}] {mutation.defect}',
+            observed = 'KILLED' if killed else 'SURVIVED'
+            expected = observed == mutation.expect
+            label = f'{observed:8}' if expected else f'{observed:8}⚠️'
+            if mutation.expect != 'KILLED':
+                label += f' (expected {mutation.expect})'
+            print(f'{index:2}. {label} [{mutation.axis}] {mutation.defect}',
                   flush=True)
-            if not killed:
-                survived.append((index, mutation))
+            if not expected:
+                unexpected.append((index, mutation, observed))
     finally:
         if not interrupted['flag']:
             _restore_all()
 
     total = len(mutations)
-    killed = total - len(survived) - len(not_applied) - len(hung) - len(no_run)
-    print(f'\n{killed}/{total} KILLED · {len(survived)} SURVIVED · '
+    controls = sum(1 for m in mutations if m.expect != 'KILLED')
+    as_expected = total - len(unexpected) - len(not_applied) - len(hung) - len(no_run)
+    print(f'\n{as_expected}/{total} 기대대로 · {len(unexpected)} 어긋남 · '
           f'{len(not_applied)} NOT-APPLIED · {len(hung)} HUNG · '
-          f'{len(no_run)} NO-RUN')
+          f'{len(no_run)} NO-RUN'
+          + (f'  (대조군 {controls})' if controls else ''))
     if no_run:
         print('\n⚠️ NO-RUN 은 "봉인이 잡았다" 가 아니다 — 봉인이 **실행되지 않았다**. '
               'pytest 종료 코드 1 만이 "테스트가 돌았고 실패했다" 이다:')
@@ -404,8 +432,17 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
         print('\n⚠️ NOT-APPLIED 는 "봉인이 잡았다" 가 아니라 "시험하지 못했다" 이다:')
         for index, mutation, why in not_applied:
             print(f'   {index:2}. [{mutation.axis}] {mutation.defect} — {why}')
-    if survived:
-        print('\n⚠️ SURVIVED — 이 결함들은 봉인이 보지 못한다:')
-        for index, mutation in survived:
-            print(f'   {index:2}. [{mutation.axis}] {mutation.defect}')
-    return 0 if not (survived or not_applied or hung or no_run) else 1
+    for index, mutation, observed in unexpected:
+        if observed == 'SURVIVED':
+            print(f'\n⚠️ SURVIVED — 이 결함을 봉인이 보지 못한다:'
+                  f'\n   {index:2}. [{mutation.axis}] {mutation.defect}')
+        else:
+            # ⚠️ 대조군이 죽었다 = 이 실행의 «모든» KILLED 가 뜻을 잃는다. 변이와
+            # 무관한 무언가가 봉인을 죽이고 있고, 그 무언가는 다른 변이들 아래에도
+            # 있었다. 개별 결과가 아니라 실행 전체에 대한 진술이다.
+            print(f'\n🔴 대조군이 KILLED 다 — 이 실행의 모든 판정이 뜻을 잃는다.'
+                  f'\n   {index:2}. [{mutation.axis}] {mutation.defect}'
+                  f'\n   관측하지 못해야 할 변이를 봉인이 죽였다. 변이와 무관한 것이'
+                  f' 봉인을 죽이고 있으므로,\n   이 실행의 다른 KILLED 도 그것으로'
+                  f' 설명될 수 있다. 배터리부터 고쳐라.')
+    return 0 if not (unexpected or not_applied or hung or no_run) else 1
