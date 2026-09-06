@@ -39,8 +39,17 @@ No file has two writers: `docs/` is written by its own canonical tool, the
 mirror only by `scripts/sync.mjs`. The mirror is kept **byte-identical** to its
 `docsSource` and is sealed by:
 
-- `node scripts/sync.mjs --check` — node/CI drift gate (runs in `frontend-build.yml`).
-- `tests/test_api_artifacts_package.py` — pytest drift gate (repo's seal medium).
+- `tests/test_api_artifacts_package.py` — **이 레인의 실질 게이트.** `scripts/lane_check.py`
+  가 pytest 만 부르므로, 이 레포에서 실제로 도는 것은 이것 하나다. 규칙을 다시 적지 않고
+  `sync.mjs` 를 실행해 종료코드로 판정한다.
+- `node scripts/sync.mjs --check` — 같은 판정의 node 진입점. ⚠️ **이 레포에는 그것을
+  부르는 워크플로가 없다.** 이 줄은 오래 `frontend-build.yml` 에서 돈다고 적었는데
+  그런 워크플로가 이 레포에 없다 — 모노레포 문장이 배송 때 따라온 것이다.
+
+⚠️ **정본은 이 트리에서 «옮겨져» 있다.** 추출 패키저가 `docs/api/*.openapi.json` 을
+`fcc_test_contracts/artifacts/` 로 옮기고 그 사실을 루트의 `.extraction-layout.json` 에
+적는다. `sync.mjs` 는 그 기록을 읽는다 — 경로를 직접 조립하던 시절에는 정본 셋을
+「없다」고 보고했고, 그 **거짓 빨강 뒤에 진짜 드리프트 둘이 숨어 있었다**(2026-09-06).
 
 ## Programmatic API
 
