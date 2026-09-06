@@ -45,6 +45,10 @@ import unittest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 HARNESS = PROJECT_ROOT / 'scripts' / 'mutation_harness.py'
+if str(HARNESS.parent) not in sys.path:
+    sys.path.insert(0, str(HARNESS.parent))
+
+from mutation_harness import verdict_for  # noqa: E402
 
 SUBJECT = 'SEALED = "bbbb"\n\n\ndef sealed():\n    return SEALED\n'
 
@@ -146,6 +150,83 @@ class TestTheVerdictVocabularyKeepsThemApart(unittest.TestCase):
         self.assertIn('1/1 KILLED', result.stdout, result.stdout[-900:])
         self.assertNotIn('NO-RUN   [', result.stdout)
         self.assertEqual(result.returncode, 0, result.stdout[-900:])
+
+
+class TestTheExitCodeTableIsMeasuredNotRecited(unittest.TestCase):
+    """Each situation is *produced*, and the code ``pytest`` returns is read back.
+
+    A table of exit codes written into a docstring is a second opinion next to
+    the tool that owns them, and it rots without contradicting anything. This
+    one already did: the first draft attributed *a typo in a seal path* to exit
+    ``5``. Measured, that is ``4`` — ``5`` is ``-k`` matching nothing. Both are
+    ``NO-RUN``, so no verdict would ever have disagreed with the wrong sentence,
+    and the next reader would have gone looking for a collection that never
+    happened.
+
+    So nothing here asserts a number. Each case builds the situation, runs
+    ``pytest`` exactly as :func:`run_battery` does, and requires
+    :func:`verdict_for` to classify whatever came back. If ``pytest`` renumbers
+    its codes, this goes red — which is the only place that should have to
+    change.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tree = Path(self._tmp.name)
+        (self.tree / 'test_passes.py').write_text(
+            'def test_ok():\n    assert True\n', encoding='utf-8')
+        (self.tree / 'test_fails.py').write_text(
+            'def test_bad():\n    assert False\n', encoding='utf-8')
+        (self.tree / 'test_broken_import.py').write_text(
+            'import no_such_module_at_all\n\n'
+            'def test_x():\n    assert True\n', encoding='utf-8')
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _pytest(self, *targets: str) -> int:
+        """The same invocation ``run_battery`` uses, so this measures that path."""
+        env = {k: v for k, v in os.environ.items() if k != 'PYTHONPATH'}
+        return subprocess.run(
+            [sys.executable, '-m', 'pytest', *targets,
+             '-q', '-x', '--tb=no', '-p', 'no:randomly'],
+            cwd=str(self.tree), capture_output=True, text=True,
+            timeout=600, env=env,
+        ).returncode
+
+    def test_tests_that_ran_and_passed(self):
+        self.assertEqual(verdict_for(self._pytest('test_passes.py')), 'pass')
+
+    def test_tests_that_ran_and_failed_are_the_only_evidence_of_a_kill(self):
+        """The control. Everything else here is NO-RUN, so without this the
+        classifier could answer ``'no-run'`` to every non-zero code and pass."""
+        self.assertEqual(verdict_for(self._pytest('test_fails.py')), 'fail')
+
+    def test_a_mutation_that_breaks_an_import(self):
+        """The shape that was tallied ``KILLED`` before 2026-09-06."""
+        self.assertEqual(
+            verdict_for(self._pytest('test_broken_import.py')), 'no-run')
+
+    def test_a_seal_path_that_does_not_exist(self):
+        """One typo in a runner's ``SEAL`` constant."""
+        self.assertEqual(
+            verdict_for(self._pytest('test_no_such_file.py')), 'no-run')
+
+    def test_a_seal_node_id_that_does_not_exist(self):
+        """The file is right and the node name is not — a rename leaves this."""
+        self.assertEqual(
+            verdict_for(self._pytest('test_passes.py::test_renamed_away')),
+            'no-run',
+        )
+
+    def test_a_selection_that_matches_nothing(self):
+        """Collected nothing. A suite that runs no test satisfies every
+        *"no new failures"* claim for free — this repository has met that
+        shape elsewhere and refuses it here too."""
+        self.assertEqual(
+            verdict_for(self._pytest('test_passes.py', '-k', 'zzzz_matches_nothing')),
+            'no-run',
+        )
 
 
 if __name__ == '__main__':

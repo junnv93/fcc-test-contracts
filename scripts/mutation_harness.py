@@ -25,10 +25,15 @@ paid for once already, in `mutation_credential_throttle.py`:
   symbol the seal imports still parses, and then ``pytest`` exits **2**
   (collection error) having run no test at all. Every non-zero exit read as
   ``KILLED``, so *"the seal cannot even load"* and *"the seal caught it"* had one
-  value. Only exit **1** means tests ran and failed; ``2`` (interrupted / collection
-  error), ``3`` (internal error), ``4`` (usage error) and ``5`` (**nothing was
-  collected** — one typo in a seal path) are now ``NO-RUN``, which is neither
-  killed nor survived. (2026-09-06; measured here, and independently in the KC
+  value. Only exit **1** means tests ran and failed; everything else is now
+  ``NO-RUN``, which is neither killed nor survived. The codes are not recited
+  here — :func:`verdict_for` carries them and
+  ``tests/test_a_seal_that_could_not_run_is_not_a_verdict.py`` **produces each
+  situation and reads the real exit code back**, so a change in ``pytest`` turns
+  that red instead of leaving a sentence here quietly wrong. (It already was:
+  the first draft attributed a typo in a seal path to exit ``5``. Measured, that
+  is ``4``; ``5`` is ``-k`` matching nothing. The verdict was the same either
+  way, which is exactly why nobody would have caught it.) (2026-09-06; measured here, and independently in the KC
   provider lane, where a stubbed interpreter returned a constant non-zero code
   and a whole battery reported ``1/1 red`` without ``pytest`` running once.)
 * **Restoration is from an in-memory backup, not ``git checkout``**, which would
@@ -68,7 +73,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-__all__ = ['Mutation', 'run_battery']
+__all__ = ['Mutation', 'run_battery', 'verdict_for']
 
 
 @dataclass(frozen=True)
@@ -147,6 +152,30 @@ def _run(argv, cwd, timeout=SEAL_TIMEOUT_SECONDS):
         return None
 
 
+def verdict_for(returncode: int) -> str:
+    """``'pass'`` · ``'fail'`` · ``'no-run'`` — from ``pytest``'s exit code alone.
+
+    Public and module-level so it can be exercised against **real** exit codes
+    rather than a table someone typed. The distinction it draws is the whole
+    point: ``1`` is *the tests ran and failed*, which is the only evidence that
+    a seal saw anything. Every other non-zero code says the run did not happen,
+    and a battery that counts those as kills reports seals it never exercised.
+
+    ⚠️ **The codes are deliberately not enumerated in prose anywhere.** They were
+    once, and the sentence was wrong within a day — a typo in a seal path was
+    attributed to ``5`` when it is ``4`` (``5`` is ``-k`` matching nothing). The
+    verdict is identical for both, so nothing would ever have contradicted it.
+    ``tests/test_a_seal_that_could_not_run_is_not_a_verdict.py`` instead *creates*
+    each situation and feeds the code ``pytest`` actually returned through this
+    function.
+    """
+    if returncode == 0:
+        return 'pass'
+    if returncode == 1:
+        return 'fail'
+    return 'no-run'
+
+
 def _write(target: Path, text: str) -> None:
     """Write ``text`` to ``target`` **and** drop any bytecode compiled from it.
 
@@ -163,6 +192,17 @@ def _write(target: Path, text: str) -> None:
 
     The check above (*"the write actually changed the file"*) reads the source,
     so it is satisfied in both cases. Only removing the cache answers.
+
+    ⚠️ **This removes a file from the tree it is pointed at.** Here that is safe —
+    neither this repository nor the monorepo tracks a single ``.pyc`` (measured
+    2026-09-06) — but ``scripts/`` travels with the delivered box, so a provider
+    can run a battery inside *their* checkout. A tree that tracks its compiled
+    files would see this delete tracked content, and a tool that dirties the
+    tree breaks its own *"commit before running"* rule. The KC provider lane hit
+    exactly that and redirected the child's ``PYTHONPYCACHEPREFIX`` instead;
+    if this lane ever ships into such a tree, that is the repair — with a
+    **fresh prefix per seal run**, since one prefix for a whole battery carries
+    the same staleness outside the tree instead of removing it.
     """
     target.write_text(text, encoding='utf-8')
     if target.suffix != '.py':
@@ -212,20 +252,12 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
 
         ⚠️ **`fail` 은 pytest 종료 코드 1 «만» 이다.** 옛 판은 0 이 아니면 전부
         `fail` 이었고, 그래서 *"봉인이 결함을 보았다"* 와 *"봉인을 돌리지 못했다"* 가
-        한 값이었다. pytest 의 종료 코드는 그 둘을 이미 구분해 준다:
-
-        | | |
-        |---|---|
-        | 0 | 전부 통과 |
-        | **1** | 테스트가 돌았고 실패했다 — 이것만이 `KILLED` 의 근거다 |
-        | 2 | 중단 / **수집 오류** — 변이가 import 를 깨면 여기다 |
-        | 3 | 내부 오류 |
-        | 4 | 사용법 오류 |
-        | 5 | **수집 0건** — 봉인 경로 오타 하나면 여기다 |
+        한 값이었다. 어느 코드가 어느 쪽인지는 :func:`verdict_for` 가 답하고, 그
+        답은 봉인이 **실제 pytest 를 그 상황에 몰아넣어** 확인한다 — 여기에 표를
+        다시 적으면 그 사본이 먼저 낡는다(실제로 한 번 낡았다).
 
         실측 2026-09-06: 봉인이 import 하는 이름을 바꾸는 변이(문법은 멀쩡하므로 위
-        AST 가드를 통과한다)가 종료 코드 2 를 내고 `KILLED` 로 집계됐다. 테스트는
-        한 번도 돌지 않았다.
+        AST 가드를 통과한다)가 `KILLED` 로 집계됐다. 테스트는 한 번도 돌지 않았다.
         """
         result = _run([
             sys.executable, '-m', 'pytest', *seal_paths, '-q', '-x',
@@ -233,13 +265,12 @@ def run_battery(*, seal, mutations: tuple, repo_root: Path, doc: str) -> int:
         ], repo_root)
         if result is None:
             return ('hang', '')
-        if result.returncode == 0:
-            return ('pass', '')
-        if result.returncode == 1:
-            return ('fail', '')
+        verdict = verdict_for(result.returncode)
+        if verdict != 'no-run':
+            return (verdict, '')
         tail = (result.stdout or result.stderr or '').strip().splitlines()
-        return ('no-run', f'pytest exit {result.returncode}'
-                          + (f' — {tail[-1][:120]}' if tail else ''))
+        return (verdict, f'pytest exit {result.returncode}'
+                         + (f' — {tail[-1][:120]}' if tail else ''))
 
     def _seal_passes() -> bool:
         return _seal_verdict()[0] == 'pass'
