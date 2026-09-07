@@ -115,12 +115,15 @@ ROUTES: dict[str, tuple[str, str]] = {
 PERMISSIONS: dict[str, str] = {
     'list_project_report_sessions': 'platform:read',
     # Phase G (2026-06-23) — test_reports 성적서 surface. Read(list + header
-    # citation) shares platform:read (a project member views the project's reports
-    # / cited SN·firmware·report_number) and create is platform:admin (issuing a
-    # certificate is a project-management act, same tier as membership writes). No
-    # new grantable token → the rbac_role_grants bijection is unchanged.
+    # citation) shares platform:read.
+    #
+    # 성적서 «발행»은 2026-09-07 에 platform:admin 에서 platform:project-operate 로
+    # 옮겼다. 옛 근거는 *"발행은 프로젝트 관리 행위이고 멤버십 쓰기와 같은 티어"*
+    # 였는데, 그 티어가 둘로 갈렸다: 멤버십 쓰기는 **사람·권한 관리**로 남고 성적서
+    # 발행은 **시험을 끝맺는 행위**다. 시험을 한 사람이 그 결과를 낼 수 없으면
+    # 매번 관리자를 거쳐야 한다 — 운영자 판정 2026-08-10 이 기각한 형태다.
     'list_reports': 'platform:read',
-    'create_report': 'platform:admin',
+    'create_report': 'platform:project-operate',
     'get_report_citation': 'platform:read',
     # 성적서 §6 장비목록 (2026-08-07) — **신규 grantable 토큰 0**.
     # 읽기는 platform:read, 쓰기는 platform:claim 을 재사용한다.

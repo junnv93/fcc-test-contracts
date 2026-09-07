@@ -46,6 +46,29 @@ _LOCAL_ACCOUNT_NOT_FOUND_404 = (
     'they helped while the tester is still locked out.'
 )
 
+_USER_ADMIN_SELF_TARGET_400 = (
+    'An administrator may not disable their own account or revoke their own last '
+    'system_admin role. Refused at the boundary rather than "allowed but '
+    'discouraged": the failure mode is that NOBODY can administer the system, and '
+    'it is not recoverable through the API — it needs a DB edit. The check is on '
+    'the AUTHENTICATED subject, never on a body field, so it cannot be spoofed.'
+)
+
+_LAST_SYSTEM_ADMIN_409 = (
+    'Refused: this would leave the platform with zero system_admin holders. A '
+    'system with no administrator cannot issue accounts, reset passwords, or grant '
+    'roles — the only exit is a DB edit. 409 rather than 400 because the request is '
+    'well-formed; it is the CURRENT STATE that forbids it, and it will succeed once '
+    'another holder exists.'
+)
+
+_USER_ALREADY_EXISTS_409 = (
+    'A local account already exists for that email. Said plainly (unlike the login '
+    'surface, which folds every failure together to prevent enumeration) because '
+    'this operation is platform:admin gated and an administrator who cannot tell a '
+    'duplicate from a failure will create a second account for the same person.'
+)
+
 _UNLOCK_MISSING_EMAIL_400 = (
     "The 'email' field is missing or blank. ⚠️ Declared separately from the 404 "
     'on purpose: the request field is named "email" while the response envelope '
@@ -75,6 +98,20 @@ ROUTES: dict[str, tuple[str, str]] = {
     'local_auth_logout': ('POST', '/platform/auth/logout'),
     # 식별자가 경로에 없는 이유는 ``UnlockLocalAccountRequest`` 가 소유한다(로그 PII).
     'unlock_local_account': ('POST', '/platform/auth/accounts/unlock'),
+    # ── 사용자 관리 (2026-09-07, intent/global-roles-and-user-admin) ────────
+    # 이 시스템이 계정을 «소유»한다: 중앙은 평문 HTTP 라 브라우저가 local_jwt 이고
+    # (실측 2026-09-07), Keycloak 이 계정을 소유하는 배포가 아니다. 그래서 발급·
+    # 비활성화·초기화가 이 표면 안에 있다.
+    #
+    # ⚠️ 식별자를 경로에 두지 않는 규약은 위 unlock 과 같다 — subject 는 IdP 마다
+    # 모양이 다르고(이메일·oid·uuid) URL 인코딩 규칙을 계약에 밀어 넣게 된다.
+    'list_users': ('GET', '/platform/auth/users'),
+    'create_local_user': ('POST', '/platform/auth/users'),
+    'disable_user': ('POST', '/platform/auth/users/disable'),
+    'enable_user': ('POST', '/platform/auth/users/enable'),
+    'reset_user_password': ('POST', '/platform/auth/users/reset-password'),
+    'assign_global_role': ('POST', '/platform/auth/users/roles/assign'),
+    'revoke_global_role': ('POST', '/platform/auth/users/roles/revoke'),
 }
 
 
@@ -102,6 +139,24 @@ PERMISSIONS: dict[str, str] = {
     # 같은 논거로 같은 기각을 이미 했다. **신규 grantable 토큰 0** — ``platform:admin``
     # 은 이미 존재하고 3-way 미러(스키마·API·프론트)를 건드리지 않는다.
     'unlock_local_account': 'platform:admin',
+    # ── 사용자 관리 (2026-09-07) ───────────────────────────────────────────
+    # 일곱 전부 platform:admin 이다. **신규 grantable 토큰 0.**
+    #
+    # 2026-09-07 에 platform:admin 은 「시험을 진행하는 사람의 일」을 잃고
+    # (그쪽은 platform:project-operate 로 갔다) **사람·권한 관리 전용**이 됐다.
+    # 이 일곱이 그 토큰의 새 내용물이고, 그래서 재사용이 옳다 — 같은 직무다.
+    #
+    # ⚠️ 읽기(`list_users`)도 platform:admin 이다. platform:read 로 낮추지 않는 이유:
+    # 그것은 **내부 직원 명부**이고 모든 로그인 사용자가 갖는 토큰이다. 로그인 표면이
+    # 네 실패를 구별 불가로 접어 열거를 막는데(위 _INVALID_CREDENTIALS_401), 명부를
+    # 열어 두면 그 방어가 우회된다.
+    'list_users': 'platform:admin',
+    'create_local_user': 'platform:admin',
+    'disable_user': 'platform:admin',
+    'enable_user': 'platform:admin',
+    'reset_user_password': 'platform:admin',
+    'assign_global_role': 'platform:admin',
+    'revoke_global_role': 'platform:admin',
 }
 
 
@@ -314,7 +369,93 @@ SCHEMAS: dict[str, dict] = {
         },
         'additionalProperties': False,
     },
+    # ── 사용자 관리 (2026-09-07) ───────────────────────────────────────────
+    # ⚠️ 사용자 «표현»은 새로 만들지 않는다 — `LocalAuthUserEnvelope` 가 이미
+    # subject/email/display_name/enabled 를 담고 있고, 관리자가 보는 사용자와
+    # 본인이 보는 사용자는 **같은 사실**이다. 두 벌이 되면 갈라진다.
+    'UserAdminList': {
+        'type': 'array',
+        'items': {'$ref': '#/schemas/UserAdminEnvelope'},
+    },
+    # 본인 조회 봉투에 «관리자만 아는» 것 둘을 더한다: 전역 역할과 강제변경 상태.
+    'UserAdminEnvelope': {
+        'type': 'object',
+        'required': ['subject', 'email', 'display_name', 'enabled', 'role_keys'],
+        'properties': {
+            'subject': {'type': 'string'},
+            'issuer': {'type': 'string'},
+            'email': {'type': 'string'},
+            'display_name': {'type': 'string'},
+            'enabled': {'type': 'boolean'},
+            'role_keys': {
+                'type': 'array',
+                'items': {'type': 'string'},
+                'description': (
+                    'Global role keys this user holds. A user may hold more than '
+                    'one — engineer + system_admin is the expected shape for a '
+                    'tester who also administers the platform.'
+                ),
+            },
+            'force_password_change': {
+                'type': 'boolean',
+                'description': (
+                    'True while the account still carries its issued password. An '
+                    'access token minted in this state carries NO permissions, so '
+                    'the account can do exactly one thing: change its password.'
+                ),
+            },
+            'locked_until': {'type': 'string', 'nullable': True},
+        },
+        'additionalProperties': False,
+    },
+    'CreateLocalUserRequest': {
+        'type': 'object',
+        'required': ['email', 'display_name'],
+        'properties': {
+            'email': {'type': 'string', 'minLength': 1},
+            'display_name': {'type': 'string', 'minLength': 1},
+            'role_keys': {
+                'type': 'array',
+                'items': {'type': 'string'},
+                'description': (
+                    'Global roles to grant at creation. Omitted or empty means the '
+                    'account is created with NO role — it can log in, change its '
+                    'password, and nothing else. That is a deliberate default: an '
+                    'account created by mistake grants nothing.'
+                ),
+            },
+        },
+        'additionalProperties': False,
+        'description': (
+            'No password field. The issued password is a fixed constant the '
+            'operator already knows, and the account is born with '
+            'force_password_change set — so a password in this request would be a '
+            'secret travelling through a request body, a log, and an audit row to '
+            'buy nothing.'
+        ),
+    },
+    # 셋(disable / enable / reset-password)이 같은 모양이라 하나를 공유한다.
+    'UserSubjectRequest': {
+        'type': 'object',
+        'required': ['subject'],
+        'properties': {
+            'subject': {'type': 'string', 'minLength': 1},
+            'issuer': {'type': 'string'},
+        },
+        'additionalProperties': False,
+    },
+    'GlobalRoleRequest': {
+        'type': 'object',
+        'required': ['subject', 'role_key'],
+        'properties': {
+            'subject': {'type': 'string', 'minLength': 1},
+            'issuer': {'type': 'string'},
+            'role_key': {'type': 'string', 'minLength': 1},
+        },
+        'additionalProperties': False,
+    },
 }
+
 
 
 OPERATIONS: dict[str, dict] = {
@@ -364,6 +505,55 @@ OPERATIONS: dict[str, dict] = {
         error_responses={
             '400': _UNLOCK_MISSING_EMAIL_400,
             '404': _LOCAL_ACCOUNT_NOT_FOUND_404,
+        },
+    ),
+    # ── 사용자 관리 (2026-09-07) ───────────────────────────────────────────
+    'list_users': _operation(
+        request=None,
+        response='UserAdminList',
+        permission=PERMISSIONS['list_users'],
+    ),
+    'create_local_user': _operation(
+        request='CreateLocalUserRequest',
+        response='UserAdminEnvelope',
+        permission=PERMISSIONS['create_local_user'],
+        error_responses={'409': _USER_ALREADY_EXISTS_409},
+    ),
+    'disable_user': _operation(
+        request='UserSubjectRequest',
+        response='UserAdminEnvelope',
+        permission=PERMISSIONS['disable_user'],
+        error_responses={
+            '400': _USER_ADMIN_SELF_TARGET_400,
+            '404': _LOCAL_ACCOUNT_NOT_FOUND_404,
+        },
+    ),
+    'enable_user': _operation(
+        request='UserSubjectRequest',
+        response='UserAdminEnvelope',
+        permission=PERMISSIONS['enable_user'],
+        error_responses={'404': _LOCAL_ACCOUNT_NOT_FOUND_404},
+    ),
+    'reset_user_password': _operation(
+        request='UserSubjectRequest',
+        response='UserAdminEnvelope',
+        permission=PERMISSIONS['reset_user_password'],
+        error_responses={'404': _LOCAL_ACCOUNT_NOT_FOUND_404},
+    ),
+    'assign_global_role': _operation(
+        request='GlobalRoleRequest',
+        response='UserAdminEnvelope',
+        permission=PERMISSIONS['assign_global_role'],
+        error_responses={'404': _LOCAL_ACCOUNT_NOT_FOUND_404},
+    ),
+    'revoke_global_role': _operation(
+        request='GlobalRoleRequest',
+        response='UserAdminEnvelope',
+        permission=PERMISSIONS['revoke_global_role'],
+        error_responses={
+            '400': _USER_ADMIN_SELF_TARGET_400,
+            '404': _LOCAL_ACCOUNT_NOT_FOUND_404,
+            '409': _LAST_SYSTEM_ADMIN_409,
         },
     ),
 }
