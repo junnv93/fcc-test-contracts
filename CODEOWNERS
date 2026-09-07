@@ -1,7 +1,14 @@
 # fcc-test-contracts — CODEOWNERS **초안**
 #
-# ⚠️ 이 파일은 모노레포 `packaging/fcc-test-contracts/CODEOWNERS` 에서 리뷰되고
-#    납품 상자의 루트로 배송됩니다. 여기서 고치면 다음 배송에서 덮어써집니다.
+# ⚠️ **이 파일은 «여기서» 고칩니다.** 배송 기계는 2026-08-31 에 퇴역했습니다.
+#
+#    🔴 정정 (2026-09-07) — 옛 판은 이렇게 적고 있었습니다:
+#       "이 파일은 모노레포 `packaging/fcc-test-contracts/CODEOWNERS` 에서 리뷰되고
+#        납품 상자의 루트로 배송됩니다. 여기서 고치면 다음 배송에서 덮어써집니다."
+#    그 디렉터리도 배송 스크립트도 모노레포에 «없습니다»:
+#       ls FCC_mobile_test_automation/packaging/                     → No such file or directory
+#       ls .../scripts/stage_extraction_package.py                   → No such file or directory
+#    그러므로 여기서 고친 것은 덮어써지지 않고, 고칠 곳도 여기뿐입니다.
 #
 # ⚠️ **초안인 이유 — 팀 핸들이 아직 없습니다.**
 #    추출 매니페스트가 이 레인의 소유자를 이름으로 적습니다:
