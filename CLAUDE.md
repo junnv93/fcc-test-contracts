@@ -118,18 +118,48 @@ python3 -m pytest tests/ -q
 
 ---
 
-## ⚠️ `main` 은 아직 보호되지 않는다
+## `main` 보호 — 값과 «platform 과 다른 이유»
 
-`GET repos/junnv93/fcc-test-contracts/branches/main/protection` → **404**
-(2026-09-07 실측). 즉 서버에서 아무것도 막지 않는다.
+2026-09-07 운영자 위임으로 켰습니다. 되읽기로 검증한 값:
 
-형제 레인 platform 은 2026-09-07 에 보호를 켰다(운영자 승인). 여기는 아직이고,
-켜는 것은 **별도의 운영자 판단**이다. 그때 값과 근거는 platform 의
-`.claude/contracts/branch-protection-declaration.json` 이 선례다 —
-특히 `required_linear_history` 는 **꺼야** 하고(머지 커밋을 쓴다),
-`required_approving_review_count` 는 협업자가 1명인 동안 **0** 이어야 한다.
+| 값 | 설정 | 왜 |
+|---|---|---|
+| PR 필수 | 켬 | 실측: 최근 40 착지 중 39 가 PR 머지, 직접 push 1건(2026-09-01) |
+| 필수 검사 | `lane-check` | 실측한 check run **이름** |
+| 필수 승인 수 | **0** | 협업자 1명 + GitHub 은 자기 PR 자기 승인 금지 |
+| `require_code_owner_reviews` | **끔** | 켜면 협업자 1명이라 그 경로를 아무도 못 고친다. 그리고 이 레포의 `CODEOWNERS` 는 **팀 핸들이 없는 초안**이다 |
+| `strict` | **끔** | `lane-check` 이 «합친 트리»를 본다 — 실증: `HEAD is now at fd08072 Merge f8992ee… into 50d7edb…` |
+| `required_linear_history` | **끔** | 머지 커밋을 쓴다(실측: 최근 5 착지 전부 부모 2개). 켜면 **전부 막힌다** |
+| force push · 삭제 | 금지 | ⚠️ **`main` 에만** 걸린다. 기능 브랜치 삭제는 그대로 된다 |
 
----
+### 🔴 `enforce_admins` 는 **꺼 두었습니다** — platform 과 «다릅니다»
+
+platform 은 `true` 입니다. 여기만 `false` 이고, 그 이유를 적어 둡니다.
+
+**이 레인은 태그를 내는 레인입니다.** platform 의 핀(`v0.1.x` · `kernel-v0.x.y`)이
+여기서 나옵니다. 그런데 이 계정의 Actions 는 **할당량 때문에 러너를 못 받은 전례가
+있고**(2026-08), 그 건에 대한 2026-09-07 판정은 **「지금은 그대로 둔다」**입니다 —
+즉 **원인이 해소되지 않았습니다.**
+
+`enforce_admins: true` 였다면 그날 이 레인의 머지가 **전면 정지**하고, 그것은
+지역적 불편이 아니라 **공급 사슬이 멈추는 것**입니다. platform 은 소비 레인이라
+멈춰도 여기서 끝나지만, 여기가 멈추면 두 레포가 함께 멈춥니다.
+
+> **그래서 여기서 `lane-check` 은 「관리자에게는 권고」입니다.**
+> 「red 면 서버가 막는다」는 **관리자에게 참이 아닙니다.** 이 문장을 지우지 마십시오 —
+> 지우면 다음 사람이 틀린 보장을 믿습니다.
+
+⚠️ **할당량이 다시 차면** 원인은 `lane-check` 의 red 가 아니라 **러너 부재**입니다.
+「도구가 없다」와 「위반이 있다」가 같은 빨강으로 보이므로, 그날 먼저 확인할 것은
+`gh api repos/junnv93/fcc-test-contracts/actions/runs/<id>/jobs` 의 `runner_name` 입니다.
+
+되돌리기: `gh api -X DELETE repos/junnv93/fcc-test-contracts/branches/main/protection`
+(적용 전 값은 **없었습니다** — `404`. 적용값 사본: `.git/branch-protection-applied-20260907.json`)
+
+⚠️ **선언 ↔ 실제 대조 검사는 아직 여기 없습니다.** platform 에는
+`scripts/check_gate_declaration.py` + `.claude/contracts/branch-protection-declaration.json`
+이 있지만, 그것을 여기 복사하면 사본이 갈라집니다. 위 표는 **손으로 쓴 산문**이고,
+이 저장소가 하루에 다섯 번 틀린 것이 정확히 그 종류입니다. 후속 과제입니다.
 
 ## 참조
 
