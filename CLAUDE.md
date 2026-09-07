@@ -183,8 +183,25 @@ platform 은 `true` 입니다. 여기만 `false` 이고, 그 이유를 적어 �
 이 있지만, 그것을 여기 복사하면 사본이 갈라집니다. 위 표는 **손으로 쓴 산문**이고,
 이 저장소가 하루에 다섯 번 틀린 것이 정확히 그 종류입니다. 후속 과제입니다.
 
-## 참조
+## 참조 — 경로를 만질 때만 로드되는 규칙
+
+⚠️ **이 표를 규칙 파일과 «같이» 갱신하라.** 지도에서 빠진 규칙은 「있는데 아무도
+모르는」 상태가 된다 — 형제 레인 platform 이 정확히 그 사고를 겪었다(2026-09-07:
+`CLAUDE.md` 가 규칙을 「셋」이라 적는 동안 넷째가 지도 밖에 있었다).
+재는 법: `ls .claude/rules/*.md | wc -l` 을 이 표의 행 수와 대조.
+
+| 파일 | 무엇 | 로드 조건 |
+|---|---|---|
+| `.claude/rules/release-versions-and-two-distributions.md` | 배포판 둘 · 번호가 «미청구»인가 · 태그 순서 · 이관에 소비자가 있나 | `pyproject.toml` · `packages/**` |
+| `.claude/rules/ask-the-resolver-never-assemble-paths.md` | 이사한 트리 — 경로를 조립하지 말고 해소기에게 물어라 | `scripts/**` · `tests/**` · `packages/api-artifacts/**` · `.extraction-layout.json` |
+| `.claude/rules/a-declaration-is-tested-in-the-consuming-lane.md` | 선언이 자기 쓰임과 어긋나도 여기서는 조용하다 | `fcc_test_contracts/**` · `packages/fcc-test-kernel/**` |
+| `.claude/skills/verify-headless-contract-axis/` | 계약 축 검증 스킬 | (스킬 — 규칙 파일이 아니다) |
+
+⚠️ **위 셋은 전부 `paths:` 조건부다.** 그 경로를 만지지 않는 세션에는 로드되지 않는다.
+**모든 세션에 참인 것은 이 파일(`CLAUDE.md`)에 써라** — `paths:` 규칙에 넣으면
+필요한 순간에 도달하지 않는다. platform 이 그 사고를 겪었고, 이 파일이 그 답이다.
+
+## 참조 — 그 밖에
 
 * `fcc-test-platform/intent/README.md` — 의도 흐름의 규칙 본문
 * `EXTRACTED_FROM.md` — 이 사본이 정확히 무엇인가 (숫자는 여기에만 있다)
-* `.claude/skills/verify-headless-contract-axis/` — 계약 축 검증 스킬
