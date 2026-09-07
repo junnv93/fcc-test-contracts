@@ -234,9 +234,32 @@ pip install -e '.[test,oidc]'
 
 ### 한계 — 이것은 실수 방지층이지 방어층이 아닙니다
 
-설치가 clone 마다 opt-in 이고, `--no-verify` 한 번이면 사라집니다. 진짜 강제는
-러너가 돌아오고 branch protection 이 이 검사를 required 로 거는 날에 생깁니다.
-그날까지 이것이 **가장 값싼 근사**입니다.
+설치가 clone 마다 opt-in 이고, `--no-verify` 한 번이면 사라집니다.
+**그래서 훅은 «로컬에서 빨리 알려 주는 층»이지 마지막 방어선이 아닙니다** —
+마지막 방어선은 서버의 branch protection 입니다.
+
+<!-- 정정 이력 — 지우지 마세요. -->
+> 🔴 **정정 (2026-09-07 12:08 실측).** 이 문단의 옛 판은 이랬습니다:
+>
+> > *"진짜 강제는 러너가 돌아오고 branch protection 이 이 검사를 required 로 거는
+> > **날에 생깁니다.** 그날까지 이것이 **가장 값싼 근사**입니다."*
+>
+> **그날은 이미 왔습니다.** 이 레포의 `main` 은 `lane-check` 를 **required** 로 겁니다:
+>
+> ```bash
+> gh api repos/junnv93/fcc-test-contracts/branches/main/protection
+> # → required_status_checks.contexts = ["lane-check"]
+> ```
+>
+> ⚠️ **다만 이 레인에는 구멍이 하나 남아 있습니다** — `enforce_admins: false`
+> (소비 레인 `fcc-test-platform` 은 `true`). **관리자는 그 보호를 우회할 수
+> 있습니다.** 그러므로 「서버가 마지막 방어선이다」는 **협업자(`push` 권한)에
+> 대해서만** 참이고, `admin` 권한을 가진 사람에 대해서는 참이 아닙니다.
+>
+> ⚠️ **같은 문장이 소비 레인에도 있었습니다** — `fcc-test-platform/README.md` 의
+> 같은 절에 글자 그대로 같은 문단이 있었고 같은 날 함께 고쳤습니다.
+> **한 사실이 거짓이 되면, 그 사실을 말하는 자리가 «레포 경계를 넘어» 있을 수
+> 있습니다.**
 
 우회해야 하면 `FCC_SKIP_LANE_CHECK=1 git push`, 그리고 **왜 우회했는지 적으세요.**
 
