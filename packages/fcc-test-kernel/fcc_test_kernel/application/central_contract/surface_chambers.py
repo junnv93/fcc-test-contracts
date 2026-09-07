@@ -99,14 +99,21 @@ PERMISSIONS: dict[str, str] = {
     # 멀티챔버 P2 — chamber registry / availability / heartbeat. Chambers are
     # GLOBAL infrastructure (not project-scoped): availability read shares
     # platform:read so any viewer can see which chamber is free, registration is
-    # platform:admin (operator-provisioned), and heartbeat push uses a SEPARATE
+    # platform:chamber-config-write (2026-09-07 — 아래 참조), and heartbeat push uses a SEPARATE
     # node-scoped platform:chamber token — a chamber PC authenticates with a
     # machine token to self-report idle/in_use without being able to read
     # coverage/claims or register/manage other chambers. platform:chamber is
     # node-scoped, NOT a project-membership grant (it never appears in
     # rbac_role_grants — mirror of the headless 'public' exclusion).
     'list_chambers': 'platform:read',
-    'register_chamber': 'platform:admin',
+    # 2026-09-07 — 등록이 platform:admin 에서 챔버 속성 토큰으로 옮겨왔다.
+    # 근거는 2026-08-11 이 저장 위치와 계측기 주소를 한 토큰으로 합칠 때 쓴 것과
+    # 같다: **행위자와 스코프가 같다.** 새 챔버 PC 를 세우고 그 방의 계측기 주소를
+    # 아는 사람은 같은 시험원이고, 스코프는 둘 다 그 챔버다.
+    #
+    # ⚠️ 아래 `update_chamber_web_session_approval` 은 **함께 오지 않는다** —
+    # 그것은 행위자가 다르다(운영자의 정책 결정). 그 자리의 주석이 근거를 갖는다.
+    'register_chamber': 'platform:chamber-config-write',
     'push_chamber_heartbeat': 'platform:chamber',
     # Chamber result transport is node-scoped exactly like heartbeat. The
     # server owns mapping/SQL and the token is bound to one chamber_id.

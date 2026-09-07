@@ -40,13 +40,6 @@ SURFACE_PREFIXES: tuple[str, ...] = (
 )
 
 
-# 이 표면의 operation 만 참조하는 에러 응답 조각. 둘 이상의 표면이 참조하게 되면
-# ``api_operation_factory`` 로 올라가야 하고, 그 판정도 파생 검사가 한다.
-_MEMBERSHIP_404 = (
-    'Membership target not found — unknown user_subject (assign) or '
-    'no current (user, role) assignment (revoke).'
-)
-
 # W3 백엔드 — project identifier already taken (create + metadata edit both).
 _PROJECT_IDENTIFIER_CONFLICT_409 = (
     'Project identifier conflict — the submitted 관리번호 (management_number) or '
@@ -74,18 +67,6 @@ ROUTES: dict[str, tuple[str, str]] = {
     'get_project_sync_status': ('GET', '/platform/projects/{project_id}/sync-status'),
     # Phase 6 — time-weighted progress rollup per (area, bucket) (read-only).
     'get_project_progress': ('GET', '/platform/projects/{project_id}/progress'),
-    # FE-P8 membership — list (read), assign (admin write), revoke (admin write).
-    # Assign and revoke share the same parent path with the list GET (one
-    # OpenAPI path item, two methods); revoke is a POST sibling that takes the
-    # target (user_subject, role_key) in the body so the URL stays opaque to
-    # IdP subject formats (emails, ids, etc.) — path-encoding them is awkward
-    # in trusted-header / OIDC environments and would force url-encoding rules
-    # into the contract.
-    'list_project_memberships': ('GET', '/platform/projects/{project_id}/memberships'),
-    'assign_project_membership': ('POST', '/platform/projects/{project_id}/memberships'),
-    'revoke_project_membership': (
-        'POST', '/platform/projects/{project_id}/memberships/revoke',
-    ),
     # project-status-visibility — explicit lifecycle action sub-resources (the
     # repo convention for state writes — cf. release / revoke / publish / archive
     # — over a generic PATCH ?status=). The target status is pinned by the path,
@@ -124,24 +105,20 @@ PERMISSIONS: dict[str, str] = {
     # platform:read (a project member reads their progress dashboard); no new
     # grantable token, so the rbac_role_grants bijection is unchanged.
     'get_project_progress': 'platform:read',
-    # FE-P8 — membership read + admin write. Read shares platform:read so the
-    # FE-P2 dashboard can show the project's RBAC roster without minting a
-    # separate viewer token; write is gated by a distinct platform:admin so
-    # role assignment never leaks down to engineer/viewer tokens.
-    'list_project_memberships': 'platform:read',
-    'assign_project_membership': 'platform:admin',
-    'revoke_project_membership': 'platform:admin',
-    # project-status-visibility — project completion lifecycle. Marking a project
-    # completed / reopening it is a project-management act (same tier as
-    # membership writes / report issuance), so it reuses platform:admin — no new
-    # grantable token, the rbac_role_grants bijection is unchanged.
-    'complete_project': 'platform:admin',
-    'reopen_project': 'platform:admin',
-    # W3 백엔드 — 성적서 표지 메타 부분 편집(PATCH). 프로젝트 속성 쓰기는 이미
-    # admin 축에 있으므로(complete/reopen 과 동일 클래스) 기존 platform:admin 을
-    # 미러링한다 — 새 정책이 아니고 신규 grantable 토큰도 0이라 rbac_role_grants ↔
-    # permissions.ts ↔ Keycloak realm bijection 이 무변경이다.
-    'update_project': 'platform:admin',
+    # ⚠️ FE-P8 의 멤버십 오퍼레이션 셋(list/assign/revoke_project_membership)은
+    # 2026-09-07 에 **사라졌다.** 역할이 프로젝트 스코프에서 전역 직무로 옮겨갔고
+    # (intent/global-roles-and-user-admin), 부여할 프로젝트 멤버십이 없다.
+    # 그 자리를 대신하는 것은 surface_auth 의 전역 역할 배정이다.
+    #
+    # project-status-visibility — 프로젝트를 완료로 표시하고 다시 여는 것은
+    # **시험을 진행하는 사람의 일**이다. 2026-09-07 이전에는 platform:admin 이었고,
+    # 그 토큰이 「권한 배정」과 「프로젝트 운영」을 함께 게이트하는 바람에
+    # 시험원에게 프로젝트 완료를 주면 권한 배정이 따라왔다. 두 직무를 가른다.
+    'complete_project': 'platform:project-operate',
+    'reopen_project': 'platform:project-operate',
+    # W3 백엔드 — 성적서 표지 메타 부분 편집(PATCH). complete/reopen 과 같은
+    # 클래스라 그 둘을 따라간다. 2026-09-07 에 셋이 함께 platform:admin 에서 옮겨졌다.
+    'update_project': 'platform:project-operate',
     # 신청자 디렉터리 — 프로젝트 디렉터리와 **같은 인가 클래스**다. 생성 폼이 부르는
     # 조회이고, 생성 자체가 'authenticated' 이므로 이것만 더 좁히면 신규 시험원이
     # 자동 채움 없이 손으로 다시 타이핑하게 된다(프로젝트 목록에서 이미 보이는
@@ -158,10 +135,6 @@ OPERATION_QUERY: dict[str, tuple[str, ...]] = {
     # omitted ⇒ the pre-W3 unbounded response, byte-identical.
     'list_projects': ('status', 'q', 'limit', 'cursor'),
     'get_project_coverage': ('limit', 'cursor', 'technology'),
-    # FE-P8 membership listing — same opt-in keyset pagination as coverage /
-    # claims. No technology facet (memberships are project-scoped, not
-    # tech-scoped) — would be a meaningless filter.
-    'list_project_memberships': ('limit', 'cursor'),
     # 신청자 디렉터리 — 타이핑에 따라 좁히는 ``q`` + 상한 ``limit``. cursor 는 없다:
     # 이 조회는 **자동완성 제안**이라 상위 N 건이 전부이고, 페이지를 넘겨 가며 읽는
     # 화면이 아니다. 없는 페이지네이션을 계약에 두면 클라이언트가 그것을 믿고
@@ -182,15 +155,6 @@ RESPONSE_HEADERS: dict[str, dict] = {
         },
     },
     'get_project_coverage': {
-        PLATFORM_NEXT_CURSOR_HEADER: {
-            'description': (
-                'Opaque keyset cursor for the next page. Absent on the last page '
-                'or an unbounded (no-limit) read. Pass it back as ?cursor= to continue.'
-            ),
-            'schema': {'type': 'string'},
-        },
-    },
-    'list_project_memberships': {
         PLATFORM_NEXT_CURSOR_HEADER: {
             'description': (
                 'Opaque keyset cursor for the next page. Absent on the last page '
@@ -421,58 +385,6 @@ SCHEMAS: dict[str, dict] = {
         },
         'additionalProperties': False,
     },
-    # FE-P8 membership envelope — one row per (project_id, user_subject, role_key)
-    # assignment. expires_at NULL ⇒ no expiry. The actor/audit context lives in
-    # audit_events; this envelope is just the current assignment fact.
-    'MembershipList': {
-        'type': 'array',
-        'items': {'$ref': '#/schemas/MembershipEnvelope'},
-    },
-    'MembershipEnvelope': {
-        'type': 'object',
-        'required': ['project_id', 'user_subject', 'role_key', 'assigned_at'],
-        'properties': {
-            'project_id': {'type': 'string'},
-            # Identity issuer for the (issuer, subject) user key. Present on server
-            # responses; optional so subject-based clients (UI optimistic updates)
-            # need not synthesize it.
-            'user_issuer': {'type': 'string'},
-            'user_subject': {'type': 'string'},
-            'role_key': {'type': 'string'},
-            'assigned_at': {'type': 'string'},
-            'expires_at': {'type': 'string', 'nullable': True},
-            # Phase D — 시험원 하위 team(RF/SAR) 분류 라벨(권한 직교, nullable).
-            'team': {'type': 'string', 'nullable': True},
-        },
-        'additionalProperties': False,
-    },
-    'AssignMembershipRequest': {
-        'type': 'object',
-        'required': ['user_subject', 'role_key'],
-        'properties': {
-            # Optional: a blank/absent issuer defaults to the legacy issuer so the
-            # subject-based UI can assign without knowing the issuer URL.
-            'user_issuer': {'type': 'string'},
-            'user_subject': {'type': 'string', 'minLength': 1},
-            'role_key': {'type': 'string', 'minLength': 1},
-            'expires_at': {'type': 'string', 'nullable': True},
-            # Phase D — optional 시험원 하위 team(RF/SAR); validated against TEAM_CODES.
-            'team': {'type': 'string', 'nullable': True},
-        },
-        'additionalProperties': False,
-    },
-    'RevokeMembershipRequest': {
-        'type': 'object',
-        'required': ['user_subject', 'role_key'],
-        'properties': {
-            # Optional: a blank/absent issuer defaults to the legacy issuer so the
-            # subject-based UI can revoke without knowing the issuer URL.
-            'user_issuer': {'type': 'string'},
-            'user_subject': {'type': 'string', 'minLength': 1},
-            'role_key': {'type': 'string', 'minLength': 1},
-        },
-        'additionalProperties': False,
-    },
 }
 
 
@@ -523,23 +435,6 @@ OPERATIONS: dict[str, dict] = {
         request=None,
         response='ProjectProgressList',
         permission=PERMISSIONS['get_project_progress'],
-    ),
-    'list_project_memberships': _operation(
-        request=None,
-        response='MembershipList',
-        permission=PERMISSIONS['list_project_memberships'],
-    ),
-    'assign_project_membership': _operation(
-        request='AssignMembershipRequest',
-        response='MembershipEnvelope',
-        permission=PERMISSIONS['assign_project_membership'],
-        error_responses={'409': _CLAIM_CONFLICT_409, '404': _MEMBERSHIP_404},
-    ),
-    'revoke_project_membership': _operation(
-        request='RevokeMembershipRequest',
-        response='MembershipEnvelope',
-        permission=PERMISSIONS['revoke_project_membership'],
-        error_responses={'409': _CLAIM_CONFLICT_409, '404': _MEMBERSHIP_404},
     ),
     'complete_project': _operation(
         request=None,

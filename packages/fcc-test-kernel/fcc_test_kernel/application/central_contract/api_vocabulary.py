@@ -280,6 +280,23 @@ PLATFORM_API_PERMISSION_DESCRIPTIONS: dict[str, str] = {
         'claim ledger and every engineer already holds it, so reusing it would '
         'grant reference publication to everyone with no decision recorded.'
     ),
+    'platform:project-operate': (
+        'Run a project to its end — edit its cover metadata (PATCH '
+        '/platform/projects/{project_id}), mark it complete, reopen it, and issue '
+        'its test report (POST /platform/projects/{project_id}/reports). ONE token '
+        'because the actor and the scope are the same for all four: the tester who '
+        'ran the measurements is the one who closes the project and issues the '
+        'certificate. Granted to engineer. '
+        'Split out of platform:admin on 2026-09-07 (intent/global-roles-and-user-admin): '
+        'that token gated BOTH these acts and role assignment, so granting a tester '
+        'the ability to issue a report also granted the ability to assign '
+        'permissions. Deliberately NOT platform:claim: that token belongs to the '
+        'measurement claim ledger and says nothing about a project\'s lifecycle. '
+        'Deliberately NOT reused for update_chamber_web_session_approval: that one '
+        'is an operator POLICY decision about a machine, and a tester who can '
+        'approve their own PC nullifies it (the same rejection surface_chambers '
+        'recorded on 2026-08-16).'
+    ),
     'platform:chamber-config-write': (
         "Set a chamber's configuration — the instrument connection settings "
         '(analyzer / BT tester / switchbox GPIB and LAN addresses, PATCH '
